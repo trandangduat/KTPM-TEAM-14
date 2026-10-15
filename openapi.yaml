@@ -1,0 +1,598 @@
+openapi: 3.0.3
+info:
+  title: Cyber Café Management System API
+  description: Tài liệu đặc tả API Hệ thống Quản lý Quán Net (Pha 1) - Chuẩn RESTful
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Development Server
+
+tags:
+  - name: Auth
+    description: Quản lý phiên đăng nhập và xác thực
+  - name: Users
+    description: Quản lý thông tin hội viên và nạp tiền
+  - name: Computers
+    description: Quản lý và tra cứu máy trạm
+  - name: Sessions
+    description: Quản lý phiên chơi, tính tiền giờ máy
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Đăng nhập tài khoản
+      description: Đăng nhập bằng tài khoản hội viên hoặc nhân viên để lấy Access Token (JWT).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Sai thông tin đăng nhập
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Đăng xuất
+      description: Vô hiệu hóa phiên đăng nhập hiện tại của người dùng.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Đăng xuất thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          description: Chưa xác thực hoặc Token không hợp lệ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/me:
+    get:
+      tags:
+        - Users
+      summary: Xem thông tin cá nhân và số dư
+      description: Lấy thông tin tài khoản, quyền hạn và số dư hiện có của hội viên đang đăng nhập.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '401':
+          description: Chưa xác thực
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{id}/top-up:
+    post:
+      tags:
+        - Users
+      summary: Nạp tiền vào tài khoản hội viên
+      description: Thu ngân (STAFF) nạp thêm tiền vào tài khoản cho hội viên tại quầy.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mã định danh (UUID) của hội viên cần nạp tiền
+          schema:
+            type: string
+            format: uuid
+            example: "e3a89045-8bb2-4841-b85f-82a138096a92"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopUpRequest'
+      responses:
+        '200':
+          description: Nạp tiền thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopUpResponse'
+        '400':
+          description: Số tiền nạp không hợp lệ (nhỏ hơn hoặc bằng 0)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Chưa xác thực
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Không đủ quyền hạn (Chỉ STAFF mới được thực hiện)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Không tìm thấy tài khoản hội viên
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /computers:
+    get:
+      tags:
+        - Computers
+      summary: Xem danh sách máy trạm
+      description: Tra cứu sơ đồ phòng máy, lọc theo trạng thái hoặc khu vực phòng.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Lọc theo trạng thái máy
+          schema:
+            type: string
+            enum: [AVAILABLE, IN_USE, MAINTENANCE]
+            example: "AVAILABLE"
+        - name: zone
+          in: query
+          required: false
+          description: Lọc theo khu vực
+          schema:
+            type: string
+            enum: [STANDARD, VIP]
+            example: "VIP"
+      responses:
+        '200':
+          description: Danh sách máy trạm
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ComputerResponse'
+
+  /computers/{id}:
+    get:
+      tags:
+        - Computers
+      summary: Xem chi tiết 1 máy trạm
+      description: Lấy thông tin chi tiết cấu hình, giá giờ và trạng thái của một máy cụ thể.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mã định danh (UUID) của máy
+          schema:
+            type: string
+            format: uuid
+            example: "c1111111-1111-1111-1111-111111111111"
+      responses:
+        '200':
+          description: Thông tin chi tiết máy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputerResponse'
+        '404':
+          description: Máy không tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sessions:
+    post:
+      tags:
+        - Sessions
+      summary: Bắt đầu phiên chơi (Mở máy)
+      description: Hội viên đăng nhập vào máy để bắt đầu tính giờ. Yêu cầu máy trống và số dư đủ tối thiểu 30 phút.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSessionRequest'
+      responses:
+        '201':
+          description: Mở máy thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveSessionResponse'
+        '401':
+          description: Chưa xác thực
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Xung đột tài nguyên (Máy đã có người ngồi hoặc bạn đang mở máy khác)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Không đủ điều kiện số dư (Tối thiểu 30 phút)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sessions/me:
+    get:
+      tags:
+        - Sessions
+      summary: Xem phiên đang chơi của bản thân
+      description: Lấy thông tin thời gian thực của phiên chơi hiện tại (số phút đã chơi, tiền đã dùng, số dư còn lại).
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Thông tin phiên đang hoạt động
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentSessionResponse'
+        '401':
+          description: Chưa xác thực
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Hiện không có phiên chơi nào đang hoạt động
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sessions/{id}:
+    delete:
+      tags:
+        - Sessions
+      summary: Kết thúc phiên chơi (Tắt máy tính tiền)
+      description: Hội viên hoặc thu ngân kết thúc phiên chơi. Hệ thống tính tiền theo số phút thực tế, trừ số dư và giải phóng máy.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mã định danh (UUID) của phiên chơi cần kết thúc
+          schema:
+            type: string
+            format: uuid
+            example: "a90987c2-9e22-4a0b-85d8-c11579be4498"
+      responses:
+        '200':
+          description: Kết thúc phiên và tính tiền thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndSessionResponse'
+        '400':
+          description: Phiên chơi đã kết thúc trước đó
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Chưa xác thực
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Không có quyền tắt máy của người khác
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Phiên chơi không tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sessions/history:
+    get:
+      tags:
+        - Sessions
+      summary: Xem lịch sử các phiên chơi
+      description: Lấy danh sách lịch sử các phiên chơi đã kết thúc của hội viên hiện tại.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lịch sử phiên chơi
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SessionHistoryResponse'
+        '401':
+          description: Chưa xác thực
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Nhập JWT token theo cú pháp: Bearer <token>"
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: "gamer01"
+        password:
+          type: string
+          format: password
+          example: "Password123@"
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          $ref: '#/components/schemas/UserProfileResponse'
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Đăng xuất thành công."
+
+    UserProfileResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "e3a89045-8bb2-4841-b85f-82a138096a92"
+        username:
+          type: string
+          example: "gamer01"
+        fullName:
+          type: string
+          example: "Nguyen Van A"
+        balance:
+          type: number
+          format: double
+          example: 50000.0
+        role:
+          type: string
+          enum: [MEMBER, STAFF]
+          example: "MEMBER"
+
+    TopUpRequest:
+      type: object
+      required:
+        - amount
+      properties:
+        amount:
+          type: number
+          format: double
+          minimum: 1000
+          example: 50000.0
+
+    TopUpResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: "e3a89045-8bb2-4841-b85f-82a138096a92"
+        username:
+          type: string
+          example: "gamer01"
+        addedAmount:
+          type: number
+          format: double
+          example: 50000.0
+        newBalance:
+          type: number
+          format: double
+          example: 100000.0
+
+    ComputerResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "c1111111-1111-1111-1111-111111111111"
+        name:
+          type: string
+          example: "Máy 01"
+        zone:
+          type: string
+          enum: [STANDARD, VIP]
+          example: "STANDARD"
+        hourlyRate:
+          type: number
+          format: double
+          example: 10000.0
+        status:
+          type: string
+          enum: [AVAILABLE, IN_USE, MAINTENANCE]
+          example: "AVAILABLE"
+
+    StartSessionRequest:
+      type: object
+      required:
+        - computerId
+      properties:
+        computerId:
+          type: string
+          format: uuid
+          example: "c1111111-1111-1111-1111-111111111111"
+
+    ActiveSessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          example: "a90987c2-9e22-4a0b-85d8-c11579be4498"
+        computerName:
+          type: string
+          example: "Máy 01"
+        startTime:
+          type: string
+          format: date-time
+          example: "2026-10-15T08:00:00Z"
+        hourlyRate:
+          type: number
+          format: double
+          example: 10000.0
+        userBalance:
+          type: number
+          format: double
+          example: 50000.0
+        status:
+          type: string
+          example: "ACTIVE"
+
+    CurrentSessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          example: "a90987c2-9e22-4a0b-85d8-c11579be4498"
+        computerName:
+          type: string
+          example: "Máy 01"
+        startTime:
+          type: string
+          format: date-time
+          example: "2026-10-15T08:00:00Z"
+        playedMinutes:
+          type: integer
+          example: 45
+        currentCost:
+          type: number
+          format: double
+          example: 7500.0
+        remainingBalance:
+          type: number
+          format: double
+          example: 42500.0
+        status:
+          type: string
+          example: "ACTIVE"
+
+    EndSessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          example: "a90987c2-9e22-4a0b-85d8-c11579be4498"
+        computerName:
+          type: string
+          example: "Máy 01"
+        startTime:
+          type: string
+          format: date-time
+          example: "2026-10-15T08:00:00Z"
+        endTime:
+          type: string
+          format: date-time
+          example: "2026-10-15T09:15:00Z"
+        durationMinutes:
+          type: integer
+          example: 75
+        totalCost:
+          type: number
+          format: double
+          example: 12500.0
+        remainingBalance:
+          type: number
+          format: double
+          example: 37500.0
+        status:
+          type: string
+          example: "ENDED"
+
+    SessionHistoryResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          example: "s-099"
+        computerName:
+          type: string
+          example: "Máy 02"
+        startTime:
+          type: string
+          format: date-time
+          example: "2026-10-14T14:00:00Z"
+        endTime:
+          type: string
+          format: date-time
+          example: "2026-10-14T16:00:00Z"
+        durationMinutes:
+          type: integer
+          example: 120
+        totalCost:
+          type: number
+          format: double
+          example: 20000.0
+        status:
+          type: string
+          example: "ENDED"
+
+    ErrorResponse:
+      type: object
+      properties:
+        errorCode:
+          type: string
+          example: "UNAUTHORIZED"
+        message:
+          type: string
+          example: "Sai tài khoản hoặc mật khẩu."

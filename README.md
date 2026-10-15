@@ -298,3 +298,23 @@ erDiagram
   }
 ]
 ```
+
+
+---
+
+## 4. Định hướng Cải tiến Kiến trúc (Pha 2)
+
+Hệ thống được thiết kế để chuẩn bị cho việc kiểm thử tải (benchmark) trên Kaggle CPU qua 3 chỉ số: **Throughput (RPS)**, **Latency (p95)** và **Tỷ lệ lỗi (%)**:
+
+1. **In-Memory Cache (Redis) cho `GET /computers`:**
+   - *Vấn đề Pha 1:* Đọc danh sách máy trực tiếp từ PostgreSQL làm nghẽn CPU database khi nhiều client gọi liên tục.
+   - *Cải tiến Pha 2:* Áp dụng Redis Cache-Aside (TTL 5s–10s), xóa cache khi mở/tắt máy.
+2. **Khóa chống tranh chấp máy khi mở phiên (`POST /sessions`):**
+   - *Vấn đề Pha 1:* Nhiều người cùng bấm mở 1 máy tại cùng một thời điểm dễ gây Deadlock hoặc mở đè phiên.
+   - *Cải tiến Pha 2:* Dùng Distributed Lock (Redis) hoặc Optimistic Locking (cột `version`) tại tầng Domain, trả về `409 Conflict` nhất quán cho các request sau.
+3. **Ghi nhận dữ liệu bất đồng bộ qua Queue (RabbitMQ / Redis):**
+   - *Vấn đề Pha 1:* Cập nhật phút chơi và trừ tiền liên tục xuống DB gây nghẽn đĩa cứng (Disk I/O).
+   - *Cải tiến Pha 2:* Tạm tính trên Redis, dùng worker gom mẻ (batching) ghi về PostgreSQL mỗi 1–3 phút.
+4. **Rate Limiting bảo vệ hệ thống:**
+   - *Vấn đề Pha 1:* Chưa có cơ chế chặn spam hoặc client lỗi gửi lặp vô hạn.
+   - *Cải tiến Pha 2:* Bổ sung middleware Rate Limiting theo IP/User (Token Bucket) để giữ vững tính sẵn sàng của hệ thống.
