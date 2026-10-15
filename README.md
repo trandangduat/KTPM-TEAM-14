@@ -6,27 +6,21 @@ Hệ thống backend quản lý máy trạm, số dư hội viên và phiên ch�
 
 ## 1. Mô tả bài toán và Nghiệp vụ cơ bản
 
-Hệ thống đáp ứng các nghiệp vụ vận hành hàng ngày của một phòng máy:
+### 1.1. Bài toán
+Quản lý trạng thái máy trạm và tự động hóa tính tiền giờ chơi cho hội viên quán net theo thời gian thực, đảm bảo trừ tiền chính xác và tránh xung đột máy.
 
-1. **Quản lý tài khoản & Nạp tiền:**
-   - Hội viên đăng nhập (`login`) để sử dụng dịch vụ và đăng xuất (`logout`) khi rời quán.
-   - Hội viên có thể tra cứu số dư tài khoản hiện tại.
-   - Thu ngân (`STAFF`) có quyền nạp tiền vào tài khoản cho hội viên tại quầy.
-2. **Xem tình trạng phòng máy:**
-   - Khách xem danh sách máy, phân loại phòng (Thường / VIP), cấu hình máy, đơn giá theo giờ và trạng thái máy (`AVAILABLE`, `IN_USE`, `MAINTENANCE`).
-3. **Mở máy (Bắt đầu phiên chơi):**
-   - Hội viên ngồi vào máy và gửi yêu cầu mở máy.
-   - **Quy tắc kiểm tra:**
-     - Máy phải đang ở trạng thái trống (`AVAILABLE`).
-     - Hội viên chưa có phiên chơi nào khác đang hoạt động.
-     - Số dư tài khoản phải đủ chơi tối thiểu **30 phút** của máy đó.
-   - Khi hợp lệ: Máy chuyển sang `IN_USE`, hệ thống ghi nhận thời gian bắt đầu.
-4. **Theo dõi và kết thúc phiên chơi:**
-   - Trong khi chơi: Máy trạm tra cứu thời gian đã ngồi, số tiền tạm tính và số dư còn lại.
-   - Khi kết thúc: Hội viên bấm tắt máy hoặc thu ngân tắt từ máy chủ. Hệ thống tính tiền theo số phút thực tế:
-     $$\text{Tiền giờ} = \text{Số phút đã chơi} \times \left(\frac{\text{Giá một giờ}}{60}\right)$$
-   - Khấu trừ số dư tài khoản, chuyển máy về trạng thái `AVAILABLE`.
-   - Lưu lại lịch sử phiên chơi để hội viên tra cứu khi cần.
+### 1.2. Phạm vi hệ thống
+* **Trong phạm vi:** Cung cấp dịch vụ backend RESTful API phục vụ quản lý tài khoản, nạp tiền, danh mục máy trạm và điều phối các phiên chơi (mở máy, theo dõi giờ chơi, tắt máy tính tiền).
+* **Ngoài phạm vi:** Không xây dựng phần mềm desktop khóa máy trạm (client-side) và chưa tích hợp cổng thanh toán online bên thứ ba.
+
+### 1.3. Tác nhân (Actors)
+* **Hội viên (`MEMBER`):** Đăng nhập/đăng xuất, xem danh sách máy, mở máy để chơi, theo dõi thời gian và số dư trong phiên, tắt máy tính tiền, xem lịch sử chơi.
+* **Thu ngân (`STAFF`):** Nạp tiền vào tài khoản hội viên tại quầy và có quyền cưỡng chế tắt máy khi cần.
+
+### 1.4. Quy trình nghiệp vụ chính
+1. **Mở máy:** Hội viên chọn máy trống (`AVAILABLE`) và gửi yêu cầu mở máy. Hệ thống kiểm tra điều kiện số dư tối thiểu (đủ 30 phút tiền máy) và chuyển máy sang `IN_USE`.
+2. **Theo dõi:** Client tra cứu số phút đã chơi, tiền tạm tính và số dư còn lại của phiên đang hoạt động.
+3. **Tắt máy:** Kết thúc phiên chơi, hệ thống tính tiền theo số phút thực tế, trừ số dư tài khoản và giải phóng máy về `AVAILABLE`.
 
 ---
 
@@ -34,14 +28,14 @@ Hệ thống đáp ứng các nghiệp vụ vận hành hàng ngày của một 
 
 ### 2.1. Kiến trúc phân tầng
 
-Hệ thống được chia thành 3 tầng chức năng độc lập:
+Hệ thống được thiết kế theo mô hình 3 tầng cơ bản:
 
 ```mermaid
 flowchart TD
-    Client["Client (Máy trạm / Máy thu ngân)"] -->|"HTTP Request / JSON"| API["1. TẦNG API\n(Controllers, JWT Middleware, Routers)"]
-    API -->|"Gọi Use-case / Service"| Domain["2. TẦNG NGHIỆP VỤ (DOMAIN)\n(Entities, Business Rules, SessionService)"]
-    Domain -->|"Gọi qua Interface (IRepository)"| Infra["3. TẦNG DỮ LIỆU (INFRASTRUCTURE)\n(Repositories, Database Connection)"]
-    Infra -->|"Đọc / Ghi SQL"| DB[("PostgreSQL")]
+    Client["Client (Máy trạm / Thu ngân)"] --> API["Tầng API (Controller, Middleware)"]
+    API --> Domain["Tầng Nghiệp vụ (Service, Domain Rules)"]
+    Domain --> Infra["Tầng Dữ liệu (Repository)"]
+    Infra --> DB[("PostgreSQL")]
 ```
 
 ### 2.2. Mô hình Dữ liệu (ERD)
