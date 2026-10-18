@@ -68,8 +68,6 @@ erDiagram
     }
 ```
 
----
-
 ## 3. Đặc tả các API
 
 - Base URL: `/api/v1`
@@ -77,21 +75,18 @@ erDiagram
 
 ### Bảng tổng hợp endpoint
 
-| Nhóm       | Phương thức | Đường dẫn            | Quyền hạn | Mô tả                                    |
-| ---------- | ----------- | -------------------- | --------- | ---------------------------------------- |
-| Auth       | `POST`      | `/auth/login`        | Public    | Đăng nhập tài khoản lấy Access Token     |
-|            | `POST`      | `/auth/logout`       | Auth      | Đăng xuất, vô hiệu hóa phiên làm việc    |
-| Hội viên   | `GET`       | `/users/me`          | Auth      | Xem thông tin cá nhân và số dư hiện tại  |
-|            | `POST`      | `/users`             | **STAFF** | Tạo tài khoản hội viên tại quầy          |
-|            | `POST`      | `/users/{id}/top-up` | **STAFF** | Thu ngân nạp tiền vào tài khoản hội viên |
-| Máy trạm   | `GET`       | `/computers`         | Public    | Xem danh sách và trạng thái phòng máy    |
-|            | `GET`       | `/computers/{id}`    | Public    | Xem chi tiết cấu hình và giá của một máy |
-|            | `PATCH`     | `/computers/{id}`    | **STAFF** | Cập nhật trạng thái máy (bảo trì)        |
-| Phiên chơi | `POST`      | `/sessions`          | Auth      | Mở máy / Bắt đầu phiên chơi              |
-|            | `GET`       | `/sessions`          | **STAFF** | Danh sách phiên đang hoạt động           |
-|            | `GET`       | `/sessions/me`       | Auth      | Xem thông tin phiên đang chơi hiện tại   |
-|            | `DELETE`    | `/sessions/{id}`     | Auth      | Tắt máy / Kết thúc phiên chơi tính tiền  |
-|            | `GET`       | `/sessions/history`  | Auth      | Xem lịch sử các phiên chơi trước đây     |
-| Báo cáo    | `GET`       | `/reports/revenue`   | **STAFF** | Doanh thu theo khoảng thời gian          |
-| Hệ thống   | `GET`       | `/health`            | Public    | Kiểm tra tiến trình còn sống             |
-|            | `GET`       | `/health/ready`      | Public    | Kiểm tra sẵn sàng nhận request           |
+| Nhóm       | Phương thức | Đường dẫn            | Quyền hạn | Mô tả                                              |
+| ---------- | ----------- | -------------------- | --------- | -------------------------------------------------- |
+| Auth       | `POST`      | `/auth/login`        | Public    | Đăng nhập tài khoản hội viên                       |
+|            | `POST`      | `/auth/logout`       | Auth      | Đăng xuất tài khoản hội viên                       |
+| Hội viên   | `GET`       | `/users/me`          | Auth      | Xem thông tin cá nhân và số dư hiện tại            |
+|            | `POST`      | `/users/{id}/top-up` | STAFF     | Staff nạp tiền vào tài khoản hội viên              |
+| Máy trạm   | `GET`       | `/computers`         | Public    | Xem danh sách và trạng thái các máy trong quán net |
+|            | `GET`       | `/computers/{id}`    | Public    | Xem chi tiết thông tin của một máy                 |
+| Phiên chơi | `POST`      | `/sessions`          | Auth      | Mở máy / Bắt đầu phiên chơi                        |
+|            | `GET`       | `/sessions`          | STAFF     | Danh sách các phiên đang hoạt động                 |
+|            | `GET`       | `/sessions/me`       | Auth      | Xem thông tin phiên đang chơi hiện tại             |
+|            | `DELETE`    | `/sessions/{id}`     | Auth      | Tắt máy / Kết thúc phiên chơi tính tiền            |
+|            | `GET`       | `/sessions/history`  | Auth      | Xem lịch sử các phiên chơi trước đây               |
+| Báo cáo    | `GET`       | `/reports/revenue`   | STAFF     | Doanh thu theo khoảng thời gian                    |
+| Hệ thống   | `GET`       | `/health`            | Public    | Kiểm tra tình trạng hệ thống backend               |
