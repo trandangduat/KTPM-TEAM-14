@@ -1,5 +1,6 @@
+from decimal import Decimal
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.dependencies import get_product_service, require_admin
 from app.api.schemas import ProductCreateRequest, ProductResponse
@@ -18,9 +19,23 @@ admin_router = APIRouter(
 
 
 @router.get("", response_model=list[ProductResponse], summary="Danh sach san pham Flash Sale")
-def list_products(product_service: ProductService = Depends(get_product_service)):
+def list_products(
+    keyword: str | None = Query(default=None, max_length=100),
+    min_price: Decimal | None = Query(default=None, ge=0),
+    max_price: Decimal | None = Query(default=None, ge=0),
+    in_stock_only: bool = Query(default=False),
+    product_service: ProductService = Depends(get_product_service),
+):
     """Xem danh sach cac san pham dang mo ban flash sale."""
-    products = product_service.list_flash_sale_products()
+    try:
+        products = product_service.list_flash_sale_products(
+            keyword=keyword,
+            min_price=min_price,
+            max_price=max_price,
+            in_stock_only=in_stock_only,
+        )
+    except ValidationException as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     return [
         ProductResponse(
             id=p.id,
