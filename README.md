@@ -72,23 +72,26 @@ erDiagram
 
 ## 3. Đặc tả các API
 
-- **Base URL:** `/api/v1`
-- **Format dữ liệu:** `application/json`
-- **Xác thực:** Gửi kèm header `Authorization: Bearer <access_token>` đối với các route yêu cầu đăng nhập.
+- Base URL: `/api/v1`
+- Gửi kèm header `Authorization: Bearer <access_token>` đối với các route yêu cầu đăng nhập.
 
 ### Bảng tổng hợp endpoint
 
-| Nhóm           | Phương thức | Đường dẫn            | Quyền hạn | Mô tả                                    |
-| -------------- | ----------- | -------------------- | --------- | ---------------------------------------- |
-| **Xác thực**   | `POST`      | `/auth/login`        | Public    | Đăng nhập tài khoản lấy Access Token     |
-|                | `POST`      | `/auth/logout`       | **Auth**  | Đăng xuất, vô hiệu hóa phiên làm việc    |
-| **Hội viên**   | `GET`       | `/users/me`          | **Auth**  | Xem thông tin cá nhân và số dư hiện tại  |
-|                | `POST`      | `/users/{id}/top-up` | **STAFF** | Thu ngân nạp tiền vào tài khoản hội viên |
-| **Máy trạm**   | `GET`       | `/computers`         | Public    | Xem danh sách và trạng thái phòng máy    |
-|                | `GET`       | `/computers/{id}`    | Public    | Xem chi tiết cấu hình và giá của một máy |
-| **Phiên chơi** | `POST`      | `/sessions`          | **Auth**  | Mở máy / Bắt đầu phiên chơi              |
-|                | `GET`       | `/sessions/me`       | **Auth**  | Xem thông tin phiên đang chơi hiện tại   |
-|                | `DELETE`    | `/sessions/{id}`     | **Auth**  | Tắt máy / Kết thúc phiên chơi tính tiền  |
-|                | `GET`       | `/sessions/history`  | **Auth**  | Xem lịch sử các phiên chơi trước đây     |
-
-> Tài liệu API đầy đủ (OpenAPI 3.0) được FastAPI sinh tự động từ code. Khi server đang chạy: Swagger UI tại `/docs`, JSON schema tại `/openapi.json`.
+| Nhóm       | Phương thức | Đường dẫn            | Quyền hạn | Mô tả                                    |
+| ---------- | ----------- | -------------------- | --------- | ---------------------------------------- |
+| Auth       | `POST`      | `/auth/login`        | Public    | Đăng nhập tài khoản lấy Access Token     |
+|            | `POST`      | `/auth/logout`       | Auth      | Đăng xuất, vô hiệu hóa phiên làm việc    |
+| Hội viên   | `GET`       | `/users/me`          | Auth      | Xem thông tin cá nhân và số dư hiện tại  |
+|            | `POST`      | `/users`             | **STAFF** | Tạo tài khoản hội viên tại quầy          |
+|            | `POST`      | `/users/{id}/top-up` | **STAFF** | Thu ngân nạp tiền vào tài khoản hội viên |
+| Máy trạm   | `GET`       | `/computers`         | Public    | Xem danh sách và trạng thái phòng máy    |
+|            | `GET`       | `/computers/{id}`    | Public    | Xem chi tiết cấu hình và giá của một máy |
+|            | `PATCH`     | `/computers/{id}`    | **STAFF** | Cập nhật trạng thái máy (bảo trì)        |
+| Phiên chơi | `POST`      | `/sessions`          | Auth      | Mở máy / Bắt đầu phiên chơi              |
+|            | `GET`       | `/sessions`          | **STAFF** | Danh sách phiên đang hoạt động           |
+|            | `GET`       | `/sessions/me`       | Auth      | Xem thông tin phiên đang chơi hiện tại   |
+|            | `DELETE`    | `/sessions/{id}`     | Auth      | Tắt máy / Kết thúc phiên chơi tính tiền  |
+|            | `GET`       | `/sessions/history`  | Auth      | Xem lịch sử các phiên chơi trước đây     |
+| Báo cáo    | `GET`       | `/reports/revenue`   | **STAFF** | Doanh thu theo khoảng thời gian          |
+| Hệ thống   | `GET`       | `/health`            | Public    | Kiểm tra tiến trình còn sống             |
+|            | `GET`       | `/health/ready`      | Public    | Kiểm tra sẵn sàng nhận request           |
