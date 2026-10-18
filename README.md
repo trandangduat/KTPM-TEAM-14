@@ -1,92 +1,108 @@
-# Hệ thống quản lý quán net - Pha 1
+# Hệ thống Đặt hàng Flash Sale - Pha 1
 
 ## 1. Mô tả bài toán và nghiệp vụ cơ bản
 
-### 1.1. Bài toán
+Hệ thống phục vụ các chiến dịch bán hàng Flash Sale. Điểm khó khăn chính của bài toán là xử lý lượng truy cập đồng thời lớn khi nhiều khách hàng cùng tranh mua một số lượng hàng hóa có hạn, đòi hỏi tính nhất quán của dữ liệu tồn kho và thời gian phản hồi nhanh.
 
-Quản lý trạng thái máy trạm và tự động hóa tính tiền giờ chơi cho hội viên quán net theo thời gian thực. Hệ thống tính tiền theo số phút thực tế và mỗi máy chỉ nhận một phiên chơi.
-
-| Role   | Nhiệm vụ                                                                                                                             |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Member | Đăng nhập/đăng xuất, xem danh sách máy, mở máy để chơi, theo dõi thời gian và số dư trong phiên, tắt máy tính tiền, xem lịch sử chơi |
-| Staff  | Quản lý nạp tiền cho hội viên                                                                                                        |
+| Role | Nghiệp vụ |
+| :--- | :--- |
+| Customer | Đăng ký/đăng nhập, xem danh sách và chi tiết các sản phẩm Flash Sale, đặt mua sản phẩm, xem lịch sử đơn hàng của bản thân, hủy đơn hàng. |
+| Admin | Thêm/xóa sản phẩm trong danh sách Flash Sale |
 
 Nghiệp vụ cơ bản:
-
-- Hội viên chọn máy trống và gửi yêu cầu mở máy. Hệ thống kiểm tra số dư nếu đủ tiền cho tối thiểu 30 phút thì mở máy cho người chơi.
-- Client tra cứu số phút đã chơi, tạm tính và số dư còn lại của phiên đang hoạt động.
-- Kết thúc phiên chơi, hệ thống tính tiền theo số phút thực tế, trừ số dư tài khoản và giải phóng máy.
+- Khách hàng (kể cả chưa đăng nhập) có thể duyệt danh sách các mặt hàng đang mở bán và số lượng tồn kho khả dụng còn lại.
+- Khách hàng đã đăng nhập chọn sản phẩm và số lượng muốn mua. Hệ thống kiểm tra số lượng tồn kho trong CSDL:
+  - Nếu vẫn còn đủ số hàng: Trừ số lượng tương ứng và tạo bản ghi đơn hàng mới.
+  - Nếu hết hàng: Từ chối yêu cầu và trả về lỗi.
+- Khách hàng có thể hủy đơn hàng của mình. Khi đơn hàng bị hủy, số lượng tương ứng sẽ được hoàn lại vào kho hàng.
 
 ## 2. Kiến trúc hệ thống
 
 ### 2.1. Kiến trúc phân tầng
 
-Hệ thống dùng mô hình 3 tầng:
-
 ```mermaid
 flowchart TD
-    Client["Client (Máy trạm / Thu ngân)"] --> API["Tầng API (Controller, Middleware)"]
-    API --> Domain["Tầng Nghiệp vụ (Service, Domain Rules)"]
-    Domain --> Infra["Tầng Dữ liệu (Repository)"]
+    Client["Client"] --> API["API Layer"]
+    API --> Domain["Domain Layer"]
+    Domain --> Infra["Data Layer"]
     Infra --> DB[("PostgreSQL")]
 ```
 
-### 2.2. Mô hình dữ liệu (ERD)
+- Tầng API: Tiếp nhận HTTP Request, xử lý xác thực/phân quyền qua JWT Middleware, validate dữ liệu đầu vào và trả về kết quả JSON.
+- Tầng Domain : Chứa logic nghiệp vụ (kiểm tra tồn kho, tính tổng tiền, logic hoàn kho khi hủy đơn). 
+- Tầng Data : Chịu trách nhiệm tương tác trực tiếp với cơ sở dữ liệu PostgreSQL.
+
+### 2.2. Mô hình dữ liệu
+
+Hệ thống sử dụng cơ sở dữ liệu quan hệ PostgreSQL với 3 bảng chính:
 
 ```mermaid
 erDiagram
-    USERS ||--o{ GAMING_SESSIONS : "opens"
-    COMPUTERS ||--o{ GAMING_SESSIONS : "used_in"
+    USERS ||--o{ ORDERS : "places"
+    PRODUCTS ||--o{ ORDERS : "contains"
 
     USERS {
         uuid id PK
-        string username
+        string username UK
         string password_hash
         string full_name
-        decimal balance
-        string role "MEMBER | STAFF"
+        string role "CUSTOMER | ADMIN"
+        datetime created_at
     }
 
-    COMPUTERS {
+    PRODUCTS {
         uuid id PK
         string name
-        string zone "STANDARD | VIP"
-        decimal hourly_rate
-        string status "AVAILABLE | IN_USE | MAINTENANCE"
-    }
-
-    GAMING_SESSIONS {
-        uuid id PK
-        uuid user_id FK
-        uuid computer_id FK
+        text description
+        decimal original_price
+        decimal flash_sale_price
+        int stock "Số lượng tồn kho khả dụng"
         datetime start_time
         datetime end_time
-        int duration_minutes
-        decimal hourly_rate_applied
-        decimal total_cost
-        string status "ACTIVE | ENDED"
+        string status "ACTIVE | INACTIVE"
+        datetime created_at
+    }
+
+    ORDERS {
+        uuid id PK
+        uuid user_id FK
+        uuid product_id FK
+        int quantity
+        decimal unit_price
+        decimal total_price
+        string status "PENDING | COMPLETED | CANCELLED"
+        datetime created_at
     }
 ```
 
-## 3. Đặc tả các API
+## 3. Đặc tả các REST API
 
 - Base URL: `/api/v1`
-- Gửi kèm header `Authorization: Bearer <access_token>` đối với các route yêu cầu đăng nhập.
+- Xác thực: Gửi kèm header `Authorization: Bearer <access_token>` đối với các route yêu cầu xác thực.
 
-### Bảng tổng hợp endpoint
+### Bảng tổng hợp các endpoint
 
-| Nhóm       | Phương thức | Đường dẫn            | Quyền hạn | Mô tả                                              |
-| ---------- | ----------- | -------------------- | --------- | -------------------------------------------------- |
-| Auth       | `POST`      | `/auth/login`        | Public    | Đăng nhập tài khoản hội viên                       |
-|            | `POST`      | `/auth/logout`       | Auth      | Đăng xuất tài khoản hội viên                       |
-| Hội viên   | `GET`       | `/users/me`          | Auth      | Xem thông tin cá nhân và số dư hiện tại            |
-|            | `POST`      | `/users/{id}/top-up` | STAFF     | Staff nạp tiền vào tài khoản hội viên              |
-| Máy trạm   | `GET`       | `/computers`         | Public    | Xem danh sách và trạng thái các máy trong quán net |
-|            | `GET`       | `/computers/{id}`    | Public    | Xem chi tiết thông tin của một máy                 |
-| Phiên chơi | `POST`      | `/sessions`          | Auth      | Mở máy / Bắt đầu phiên chơi                        |
-|            | `GET`       | `/sessions`          | STAFF     | Danh sách các phiên đang hoạt động                 |
-|            | `GET`       | `/sessions/me`       | Auth      | Xem thông tin phiên đang chơi hiện tại             |
-|            | `DELETE`    | `/sessions/{id}`     | Auth      | Tắt máy / Kết thúc phiên chơi tính tiền            |
-|            | `GET`       | `/sessions/history`  | Auth      | Xem lịch sử các phiên chơi trước đây               |
-| Báo cáo    | `GET`       | `/reports/revenue`   | STAFF     | Doanh thu theo khoảng thời gian                    |
-| Hệ thống   | `GET`       | `/health`            | Public    | Kiểm tra tình trạng hệ thống backend               |
+| Nhóm | Method | Đường dẫn | Quyền hạn | Mô tả chức năng |
+| :--- | :--- | :--- | :--- | :--- |
+| **Auth** | `POST` | `/auth/register` | Public | Đăng ký tài khoản khách hàng mới |
+| | `POST` | `/auth/login` | Public | Đăng nhập hệ thống, trả về JWT Access Token |
+| | `GET` | `/users/me` | Auth (Customer/Admin) | Xem thông tin chi tiết của tài khoản đang đăng nhập |
+| **Flash Sale Products** | `GET` | `/products` | Public | Xem danh sách các sản phẩm đang mở bán Flash Sale |
+| | `GET` | `/products/{id}` | Public | Xem thông tin chi tiết và số lượng tồn kho của 1 sản phẩm |
+| | `POST` | `/products` | **Admin** | Thêm mới một sản phẩm vào chiến dịch Flash Sale |
+| | `DELETE`| `/products/{id}` | **Admin** | Gỡ bỏ / Xóa một sản phẩm khỏi danh sách Flash Sale |
+| **Orders** | `POST` | `/orders` | **Customer** | **Đặt mua sản phẩm Flash Sale (Kiểm tra tồn kho & trừ kho)** |
+| | `GET` | `/orders/me` | Customer | Xem danh sách đơn hàng đã đặt của người dùng hiện tại |
+| | `GET` | `/orders/{id}` | Customer | Xem chi tiết thông tin một đơn hàng |
+| | `DELETE`| `/orders/{id}` | Customer | **Hủy đơn hàng (Cập nhật trạng thái CANCELLED & hoàn lại tồn kho)** |
+| **Hệ thống** | `GET` | `/health` | Public | Kiểm tra trạng thái hoạt động của Backend và kết nối Database |
+
+## 4. Định hướng cải tiến ở Pha 2
+
+Điểm nghẽn dự kiến ở Pha 1:
+  - Kịch bản test tải với ~1000 request đồng thời gửi tới `POST /orders` cho cùng một sản phẩm có số lượng tồn kho giới hạn.
+  - Hiện tượng: Xảy ra Race Condition, nguy cơ bán vượt số lượng tồn kho nếu không xử lý đồng thời tốt, hoặc Database bị nghẽn dẫn đến thời gian phản hồi tăng.
+  
+Định hướng tối ưu ở Pha 2:
+  - Áp dụng **Redis Caching** để kiểm tra và trừ tồn kho tức thì với độ trễ tối thiểu.
+  - Ứng dụng **Message Queue (RabbitMQ, Kafka)** để chuyển đổi luồng xử lý đơn hàng từ đồng bộ sang bất đồng bộ, giải phóng áp lực ghi trực tiếp lên cơ sở dữ liệu.
