@@ -97,7 +97,40 @@ erDiagram
 | | `DELETE`| `/orders/{id}` | Customer | Hủy đơn hàng |
 | **Hệ thống** | `GET` | `/health` | Public | Kiểm tra trạng thái hoạt động của Backend và kết nối Database |
 
-## 4. Định hướng cải tiến ở Pha 2
+## 4. Hướng dẫn chạy dự án
+
+### Cách 1: Sử dụng Docker Compose (Khuyên dùng)
+Yêu cầu: Đã cài đặt Docker và Docker Compose.
+
+1. Khởi động toàn bộ hệ thống:
+```bash
+docker compose up --build
+```
+2. Truy cập tài liệu API (Swagger UI):
+- Đường dẫn: `http://localhost:8000/docs`
+- Tài khoản thử nghiệm đã được tạo sẵn:
+  - Quản trị viên: `admin` / `admin123`
+  - Khách hàng: `customer1` / `password123`
+
+### Cách 2: Chạy trực tiếp bằng Python
+Yêu cầu: Python 3.10+ và PostgreSQL đang chạy.
+
+1. Cài đặt thư viện:
+```bash
+pip install -r requirements.txt
+```
+2. Thiết lập cấu hình:
+- Sao chép `.env.example` thành `.env` và cập nhật thông tin `DATABASE_URL`.
+3. Khởi tạo dữ liệu thử nghiệm:
+```bash
+python -m scripts.seed
+```
+4. Khởi chạy server:
+```bash
+uvicorn app.main:app --reload
+```
+
+## 5. Định hướng cải tiến ở Pha 2
 
 Điểm nghẽn dự kiến ở Pha 1:
   - Kịch bản test tải với ~1000 request đồng thời gửi tới `POST /orders` cho cùng một sản phẩm có số lượng tồn kho giới hạn.
