@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # Schemas cho xac thuc va nguoi dung
@@ -25,13 +25,39 @@ class UserResponse(BaseModel):
 
 # Schemas cho san pham
 class ProductCreateRequest(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1, max_length=200)
     description: str | None = None
-    original_price: Decimal = Field(..., gt=0)
-    flash_sale_price: Decimal = Field(..., gt=0)
+    original_price: Decimal = Field(..., gt=0, max_digits=12, decimal_places=2)
+    flash_sale_price: Decimal = Field(..., gt=0, max_digits=12, decimal_places=2)
     stock: int = Field(..., ge=0)
     start_time: datetime | None = None
     end_time: datetime | None = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def normalize_name(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized_name = " ".join(value.split())
+        if not normalized_name:
+            raise ValueError("Ten san pham khong duoc de trong")
+        return normalized_name
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def normalize_description(cls, value: object) -> object:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return value
+        normalized_description = value.strip()
+        return normalized_description or None
+
+    @model_validator(mode="after")
+    def validate_price_relationship(self):
+        if self.flash_sale_price >= self.original_price:
+            raise ValueError("Gia flash sale phai thap hon gia goc")
+        return self
 
 
 class ProductResponse(BaseModel):
