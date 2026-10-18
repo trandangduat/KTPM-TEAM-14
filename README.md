@@ -6,7 +6,7 @@ Hệ thống phục vụ các chiến dịch bán hàng Flash Sale. Điểm khó
 
 | Role | Nghiệp vụ |
 | :--- | :--- |
-| Customer | Đăng ký/đăng nhập, xem danh sách và chi tiết các sản phẩm Flash Sale, đặt mua sản phẩm, xem lịch sử đơn hàng của bản thân, hủy đơn hàng. |
+| Customer | Xem danh sách và chi tiết các sản phẩm Flash Sale, đặt mua sản phẩm, xem lịch sử đơn hàng của bản thân, hủy đơn hàng. |
 | Admin | Thêm/xóa sản phẩm trong danh sách Flash Sale |
 
 Nghiệp vụ cơ bản:
@@ -84,17 +84,17 @@ erDiagram
 
 | Nhóm | Method | Đường dẫn | Quyền hạn | Mô tả chức năng |
 | :--- | :--- | :--- | :--- | :--- |
-| **Auth** | `POST` | `/auth/register` | Public | Đăng ký tài khoản khách hàng mới |
-| | `POST` | `/auth/login` | Public | Đăng nhập hệ thống, trả về JWT Access Token |
-| | `GET` | `/users/me` | Auth (Customer/Admin) | Xem thông tin chi tiết của tài khoản đang đăng nhập |
-| **Flash Sale Products** | `GET` | `/products` | Public | Xem danh sách các sản phẩm đang mở bán Flash Sale |
+| **Auth** | `POST` | `/auth/login` | Public | Đăng nhập |
+| | `POST` | `/auth/logout` | Auth | Đăng xuất |
+| | `GET` | `/users/me` | Auth | Xem thông tin chi tiết của tài khoản |
+| **Flash Sale** | `GET` | `/products` | Public | Xem danh sách các sản phẩm đang mở bán Flash Sale |
 | | `GET` | `/products/{id}` | Public | Xem thông tin chi tiết và số lượng tồn kho của 1 sản phẩm |
-| | `POST` | `/products` | **Admin** | Thêm mới một sản phẩm vào chiến dịch Flash Sale |
-| | `DELETE`| `/products/{id}` | **Admin** | Gỡ bỏ / Xóa một sản phẩm khỏi danh sách Flash Sale |
-| **Orders** | `POST` | `/orders` | **Customer** | **Đặt mua sản phẩm Flash Sale (Kiểm tra tồn kho & trừ kho)** |
+| | `POST` | `/products` | **Admin** | Thêm mới một sản phẩm vào danh sách Flash Sale |
+| | `DELETE`| `/products/{id}` | **Admin** | Xóa một sản phẩm khỏi danh sách Flash Sale |
+| **Orders** | `POST` | `/orders` | **Customer** | Đặt mua sản phẩm Flash Sale |
 | | `GET` | `/orders/me` | Customer | Xem danh sách đơn hàng đã đặt của người dùng hiện tại |
 | | `GET` | `/orders/{id}` | Customer | Xem chi tiết thông tin một đơn hàng |
-| | `DELETE`| `/orders/{id}` | Customer | **Hủy đơn hàng (Cập nhật trạng thái CANCELLED & hoàn lại tồn kho)** |
+| | `DELETE`| `/orders/{id}` | Customer | Hủy đơn hàng |
 | **Hệ thống** | `GET` | `/health` | Public | Kiểm tra trạng thái hoạt động của Backend và kết nối Database |
 
 ## 4. Định hướng cải tiến ở Pha 2
