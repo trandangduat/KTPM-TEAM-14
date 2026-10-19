@@ -24,6 +24,7 @@ def list_products(
     min_price: Decimal | None = Query(default=None, ge=0),
     max_price: Decimal | None = Query(default=None, ge=0),
     in_stock_only: bool = Query(default=False),
+    sale_state: str | None = Query(default=None),
     product_service: ProductService = Depends(get_product_service),
 ):
     """Xem danh sach cac san pham dang mo ban flash sale."""
@@ -33,6 +34,7 @@ def list_products(
             min_price=min_price,
             max_price=max_price,
             in_stock_only=in_stock_only,
+            sale_state=sale_state,
         )
     except ValidationException as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
@@ -47,6 +49,7 @@ def list_products(
             start_time=p.start_time,
             end_time=p.end_time,
             status=p.status,
+            sale_state=p.sale_state(),
             created_at=p.created_at,
         )
         for p in products
@@ -68,6 +71,7 @@ def get_product(product_id: UUID, product_service: ProductService = Depends(get_
             start_time=p.start_time,
             end_time=p.end_time,
             status=p.status,
+            sale_state=p.sale_state(),
             created_at=p.created_at,
         )
     except NotFoundException as exc:
@@ -100,6 +104,7 @@ def create_product(
             start_time=p.start_time,
             end_time=p.end_time,
             status=p.status,
+            sale_state=p.sale_state(),
             created_at=p.created_at,
         )
     except ValidationException as exc:

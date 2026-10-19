@@ -57,6 +57,8 @@ class ProductCreateRequest(BaseModel):
     def validate_price_relationship(self):
         if self.flash_sale_price >= self.original_price:
             raise ValueError("Gia flash sale phai thap hon gia goc")
+        if self.start_time and self.end_time and self.start_time >= self.end_time:
+            raise ValueError("Thoi gian ket thuc phai sau thoi gian bat dau")
         return self
 
 
@@ -70,6 +72,7 @@ class ProductResponse(BaseModel):
     start_time: datetime | None = None
     end_time: datetime | None = None
     status: str
+    sale_state: str
     created_at: datetime
 
 

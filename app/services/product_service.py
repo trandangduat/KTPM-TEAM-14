@@ -48,8 +48,14 @@ class ProductService:
         min_price: Decimal | None = None,
         max_price: Decimal | None = None,
         in_stock_only: bool = False,
+        sale_state: str | None = None,
+        at: datetime | None = None,
     ) -> list[Product]:
         self._validate_price_filter(min_price, max_price)
+        allowed_states = {"UPCOMING", "AVAILABLE", "SOLD_OUT", "ENDED", "INACTIVE"}
+        normalized_state = sale_state.upper() if sale_state else None
+        if normalized_state and normalized_state not in allowed_states:
+            raise ValidationException("Trang thai flash sale khong hop le")
         normalized_keyword = keyword.strip().casefold() if keyword else None
         products = self.product_repo.list_active()
 
@@ -60,6 +66,7 @@ class ProductService:
                 and (min_price is None or product.flash_sale_price >= min_price)
                 and (max_price is None or product.flash_sale_price <= max_price)
                 and (not in_stock_only or product.stock > 0)
+                and (not normalized_state or product.sale_state(at) == normalized_state)
             )
 
         return [product for product in products if matches(product)]
@@ -91,6 +98,8 @@ class ProductService:
             raise ValidationException("So luong ton kho phai la so nguyen")
         if stock < 0:
             raise ValidationException("So luong ton kho khong the am")
+        if start_time and end_time and start_time >= end_time:
+            raise ValidationException("Thoi gian ket thuc phai sau thoi gian bat dau")
         self._validate_money(original_price, "Gia goc")
         self._validate_money(flash_sale_price, "Gia flash sale")
         if flash_sale_price >= original_price:

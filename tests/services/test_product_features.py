@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -140,3 +140,51 @@ def test_list_products_rejects_invalid_price_range():
             min_price=Decimal(1000),
             max_price=Decimal(500),
         )
+
+
+def test_product_reports_sale_state_from_schedule_and_stock():
+    now = datetime(2026, 10, 29, 10, 0)
+    product = make_product("Ban phim", Decimal(900000))
+
+    product.start_time = now + timedelta(hours=1)
+    assert product.sale_state(now) == "UPCOMING"
+
+    product.start_time = now - timedelta(hours=1)
+    product.end_time = now + timedelta(hours=1)
+    assert product.sale_state(now) == "AVAILABLE"
+
+    product.stock = 0
+    assert product.sale_state(now) == "SOLD_OUT"
+
+    product.end_time = now
+    assert product.sale_state(now) == "ENDED"
+
+
+def test_create_product_rejects_invalid_sale_schedule():
+    now = datetime(2026, 10, 29, 10, 0)
+    service = ProductService(FakeProductRepository())
+
+    with pytest.raises(ValidationException, match="ket thuc"):
+        service.create_flash_sale_product(
+            **valid_product_data(),
+            start_time=now,
+            end_time=now - timedelta(minutes=1),
+        )
+
+
+def test_list_products_filters_sale_state():
+    now = datetime(2026, 10, 29, 10, 0)
+    upcoming = make_product("Sap mo ban", Decimal(500000))
+    upcoming.start_time = now + timedelta(hours=1)
+    available = make_product("Dang mo ban", Decimal(600000))
+    service = ProductService(FakeProductRepository([upcoming, available]))
+
+    assert service.list_flash_sale_products(sale_state="upcoming", at=now) == [upcoming]
+    assert service.list_flash_sale_products(sale_state="AVAILABLE", at=now) == [available]
+
+
+def test_list_products_rejects_unknown_sale_state():
+    service = ProductService(FakeProductRepository())
+
+    with pytest.raises(ValidationException, match="Trang thai"):
+        service.list_flash_sale_products(sale_state="UNKNOWN")
