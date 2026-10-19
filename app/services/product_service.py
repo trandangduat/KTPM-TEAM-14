@@ -38,8 +38,12 @@ class ProductService:
             raise ValidationException("Ten san pham khong duoc de trong")
         if stock < 0:
             raise ValidationException("So luong ton kho khong the am")
-        if flash_sale_price < 0 or original_price < 0:
+        if flash_sale_price <= 0 or original_price <= 0:
             raise ValidationException("Gia san pham khong hop le")
+        if flash_sale_price > original_price:
+            raise ValidationException("Gia flash sale khong the cao hon gia goc")
+        if start_time and end_time and start_time >= end_time:
+            raise ValidationException("Thoi gian ket thuc phai sau thoi gian bat dau")
 
         product = Product(
             id=uuid.uuid4(),
