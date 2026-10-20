@@ -27,6 +27,10 @@ class FakeProductRepository:
         self.products.append(product)
         return product
 
+    def update(self, product):
+        self.products = [product if item.id == product.id else item for item in self.products]
+        return product
+
     def update_stock(self, product_id, new_stock):
         return None
 
@@ -188,3 +192,37 @@ def test_list_products_rejects_unknown_sale_state():
 
     with pytest.raises(ValidationException, match="Trang thai"):
         service.list_flash_sale_products(sale_state="UNKNOWN")
+
+
+def test_update_product_normalizes_fields_and_preserves_other_values():
+    product = make_product("Ban phim", Decimal(900000), description="Mo ta cu")
+    service = ProductService(FakeProductRepository([product]))
+
+    updated = service.update_flash_sale_product(
+        product.id,
+        {"name": "  Ban   phim Pro ", "description": "  Mo ta moi  ", "status": "INACTIVE"},
+    )
+
+    assert updated.name == "Ban phim Pro"
+    assert updated.description == "Mo ta moi"
+    assert updated.status == "INACTIVE"
+    assert updated.flash_sale_price == Decimal(900000)
+
+
+def test_update_product_validates_final_price_relationship():
+    product = make_product("Ban phim", Decimal(900000))
+    service = ProductService(FakeProductRepository([product]))
+
+    with pytest.raises(ValidationException, match="thap hon"):
+        service.update_flash_sale_product(
+            product.id,
+            {"flash_sale_price": product.original_price},
+        )
+
+
+def test_update_product_rejects_empty_changes():
+    product = make_product("Ban phim", Decimal(900000))
+    service = ProductService(FakeProductRepository([product]))
+
+    with pytest.raises(ValidationException, match="it nhat mot truong"):
+        service.update_flash_sale_product(product.id, {})

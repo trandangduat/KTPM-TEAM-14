@@ -34,6 +34,10 @@ class ProductRepository(ABC):
         pass
 
     @abstractmethod
+    def update(self, product: Product) -> Product:
+        pass
+
+    @abstractmethod
     def update_stock(self, product_id: UUID, new_stock: int) -> Product | None:
         pass
 
