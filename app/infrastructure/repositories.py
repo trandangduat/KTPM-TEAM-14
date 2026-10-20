@@ -91,6 +91,22 @@ class SqlAlchemyProductRepository(ProductRepository):
         self.db.refresh(model)
         return self._to_entity(model)
 
+    def update(self, product: Product) -> Product:
+        model = self.db.query(ProductModel).filter(ProductModel.id == product.id).first()
+        if not model:
+            raise ConflictException("San pham khong con ton tai de cap nhat")
+        model.name = product.name
+        model.description = product.description
+        model.original_price = product.original_price
+        model.flash_sale_price = product.flash_sale_price
+        model.stock = product.stock
+        model.start_time = product.start_time
+        model.end_time = product.end_time
+        model.status = product.status
+        self.db.commit()
+        self.db.refresh(model)
+        return self._to_entity(model)
+
     def update_stock(self, product_id: UUID, new_stock: int) -> Product | None:
         model = self.db.query(ProductModel).filter(ProductModel.id == product_id).first()
         if not model:

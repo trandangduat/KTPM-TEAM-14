@@ -62,6 +62,40 @@ class ProductCreateRequest(BaseModel):
         return self
 
 
+class ProductUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    original_price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    flash_sale_price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    status: str | None = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def normalize_optional_name(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        return " ".join(value.split())
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def normalize_optional_description(cls, value: object) -> object:
+        if value is None or not isinstance(value, str):
+            return value
+        return value.strip() or None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized_status = value.upper()
+        if normalized_status not in {"ACTIVE", "INACTIVE"}:
+            raise ValueError("Trang thai san pham khong hop le")
+        return normalized_status
+
+
 class ProductResponse(BaseModel):
     id: UUID
     name: str

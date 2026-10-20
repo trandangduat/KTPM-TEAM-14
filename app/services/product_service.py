@@ -124,3 +124,71 @@ class ProductService:
         if not product:
             raise NotFoundException("San pham khong ton tai")
         return self.product_repo.delete(product_id)
+
+    def update_flash_sale_product(
+        self,
+        product_id: UUID,
+        changes: dict[str, object],
+    ) -> Product:
+        product = self.product_repo.get_by_id(product_id)
+        if not product:
+            raise NotFoundException("San pham khong ton tai")
+
+        allowed_fields = {
+            "name",
+            "description",
+            "original_price",
+            "flash_sale_price",
+            "start_time",
+            "end_time",
+            "status",
+        }
+        unknown_fields = set(changes) - allowed_fields
+        if unknown_fields:
+            raise ValidationException("Du lieu cap nhat san pham khong hop le")
+        if not changes:
+            raise ValidationException("Can cung cap it nhat mot truong de cap nhat")
+
+        if "name" in changes:
+            name = changes["name"]
+            if not isinstance(name, str):
+                raise ValidationException("Ten san pham khong hop le")
+            normalized_name = " ".join(name.split())
+            if not normalized_name or len(normalized_name) > 200:
+                raise ValidationException("Ten san pham phai co tu 1 den 200 ky tu")
+            product.name = normalized_name
+
+        if "description" in changes:
+            description = changes["description"]
+            if description is not None and not isinstance(description, str):
+                raise ValidationException("Mo ta san pham khong hop le")
+            product.description = description.strip() or None if description else None
+
+        for field_name, label in (
+            ("original_price", "Gia goc"),
+            ("flash_sale_price", "Gia flash sale"),
+        ):
+            if field_name in changes:
+                value = changes[field_name]
+                self._validate_money(value, label)
+                setattr(product, field_name, value)
+
+        if product.flash_sale_price >= product.original_price:
+            raise ValidationException("Gia flash sale phai thap hon gia goc")
+
+        for field_name in ("start_time", "end_time"):
+            if field_name in changes:
+                value = changes[field_name]
+                if value is not None and not isinstance(value, datetime):
+                    raise ValidationException("Thoi gian flash sale khong hop le")
+                setattr(product, field_name, value)
+        if product.start_time and product.end_time and product.start_time >= product.end_time:
+            raise ValidationException("Thoi gian ket thuc phai sau thoi gian bat dau")
+
+        if "status" in changes:
+            status = changes["status"]
+            if status not in {"ACTIVE", "INACTIVE"}:
+                raise ValidationException("Trang thai san pham khong hop le")
+            product.status = status
+
+        return self.product_repo.update(product)
