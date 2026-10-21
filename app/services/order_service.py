@@ -23,6 +23,12 @@ class OrderService:
         if not product or product.status != "ACTIVE":
             raise NotFoundException("San pham khong ton tai hoac da ngung ban")
 
+        current_time = datetime.utcnow()
+        if product.start_time and current_time < product.start_time:
+            raise ValidationException("Chuong trinh flash sale chua bat dau")
+        if product.end_time and current_time >= product.end_time:
+            raise ValidationException("Chuong trinh flash sale da ket thuc")
+
         # Kiem tra so luong ton kho
         if product.stock < quantity:
             raise OutOfStockException("San pham khong du so luong ton kho")
