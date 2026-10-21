@@ -96,6 +96,17 @@ class ProductUpdateRequest(BaseModel):
         return normalized_status
 
 
+class ProductStockAdjustmentRequest(BaseModel):
+    adjustment: int = Field(..., ge=-1_000_000, le=1_000_000)
+
+    @field_validator("adjustment")
+    @classmethod
+    def validate_non_zero_adjustment(cls, value: int) -> int:
+        if value == 0:
+            raise ValueError("So luong dieu chinh phai khac 0")
+        return value
+
+
 class ProductResponse(BaseModel):
     id: UUID
     name: str

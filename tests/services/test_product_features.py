@@ -32,7 +32,11 @@ class FakeProductRepository:
         return product
 
     def update_stock(self, product_id, new_stock):
-        return None
+        product = self.get_by_id(product_id)
+        if not product:
+            return None
+        product.stock = new_stock
+        return product
 
     def delete(self, product_id):
         return False
@@ -226,3 +230,29 @@ def test_update_product_rejects_empty_changes():
 
     with pytest.raises(ValidationException, match="it nhat mot truong"):
         service.update_flash_sale_product(product.id, {})
+
+
+def test_adjust_stock_supports_receipt_and_issue():
+    product = make_product("Ban phim", Decimal(900000), stock=10)
+    service = ProductService(FakeProductRepository([product]))
+
+    assert service.adjust_product_stock(product.id, 5).stock == 15
+    assert service.adjust_product_stock(product.id, -3).stock == 12
+
+
+def test_adjust_stock_rejects_issue_larger_than_available_stock():
+    product = make_product("Ban phim", Decimal(900000), stock=2)
+    service = ProductService(FakeProductRepository([product]))
+
+    with pytest.raises(ValidationException, match="vuot qua ton kho"):
+        service.adjust_product_stock(product.id, -3)
+    assert product.stock == 2
+
+
+@pytest.mark.parametrize("adjustment", [0, True, Decimal("1.5")])
+def test_adjust_stock_rejects_invalid_adjustment(adjustment):
+    product = make_product("Ban phim", Decimal(900000), stock=2)
+    service = ProductService(FakeProductRepository([product]))
+
+    with pytest.raises(ValidationException):
+        service.adjust_product_stock(product.id, adjustment)
