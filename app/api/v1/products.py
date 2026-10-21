@@ -3,7 +3,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.dependencies import get_product_service, require_admin
-from app.api.schemas import ProductCreateRequest, ProductResponse, ProductUpdateRequest
+from app.api.schemas import (
+    ProductCreateRequest,
+    ProductResponse,
+    ProductStockAdjustmentRequest,
+    ProductUpdateRequest,
+)
 from app.domain.exceptions import ConflictException, NotFoundException, ValidationException
 from app.services.product_service import ProductService
 
@@ -138,6 +143,38 @@ def update_product(
             product_id,
             payload.model_dump(exclude_unset=True),
         )
+        return ProductResponse(
+            id=product.id,
+            name=product.name,
+            description=product.description,
+            original_price=product.original_price,
+            flash_sale_price=product.flash_sale_price,
+            stock=product.stock,
+            start_time=product.start_time,
+            end_time=product.end_time,
+            status=product.status,
+            sale_state=product.sale_state(),
+            created_at=product.created_at,
+        )
+    except NotFoundException as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except ValidationException as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@admin_router.post(
+    "/{product_id}/stock-adjustments",
+    response_model=ProductResponse,
+    summary="Dieu chinh ton kho san pham",
+)
+def adjust_product_stock(
+    product_id: UUID,
+    payload: ProductStockAdjustmentRequest,
+    product_service: ProductService = Depends(get_product_service),
+):
+    """Admin nhap them hoac xuat bot ton kho bang mot gia tri chenh lech."""
+    try:
+        product = product_service.adjust_product_stock(product_id, payload.adjustment)
         return ProductResponse(
             id=product.id,
             name=product.name,

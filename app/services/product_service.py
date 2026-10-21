@@ -12,6 +12,7 @@ class ProductService:
 
     MONEY_QUANTUM = Decimal("0.01")
     MAX_MONEY_VALUE = Decimal("9999999999.99")
+    MAX_STOCK = 1_000_000
 
     def __init__(self, product_repo: ProductRepository):
         self.product_repo = product_repo
@@ -192,3 +193,24 @@ class ProductService:
             product.status = status
 
         return self.product_repo.update(product)
+
+    def adjust_product_stock(self, product_id: UUID, adjustment: int) -> Product:
+        if not isinstance(adjustment, int) or isinstance(adjustment, bool):
+            raise ValidationException("So luong dieu chinh phai la so nguyen")
+        if adjustment == 0:
+            raise ValidationException("So luong dieu chinh phai khac 0")
+
+        product = self.product_repo.get_by_id(product_id)
+        if not product:
+            raise NotFoundException("San pham khong ton tai")
+
+        new_stock = product.stock + adjustment
+        if new_stock < 0:
+            raise ValidationException("So luong xuat kho vuot qua ton kho hien tai")
+        if new_stock > self.MAX_STOCK:
+            raise ValidationException("Ton kho vuot qua gioi han cho phep")
+
+        updated_product = self.product_repo.update_stock(product.id, new_stock)
+        if not updated_product:
+            raise NotFoundException("San pham khong con ton tai de dieu chinh kho")
+        return updated_product
