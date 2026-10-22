@@ -10,17 +10,34 @@ from app.domain.exceptions import NotFoundException, ValidationException, OutOfS
 
 class OrderService:
 
+    MAX_QUANTITY_PER_ORDER = 20
+    MONEY_QUANTUM = Decimal("0.01")
+
     def __init__(self, order_repo: OrderRepository, product_repo: ProductRepository):
         self.order_repo = order_repo
         self.product_repo = product_repo
 
     def create_order(self, user_id: UUID, product_id: UUID, quantity: int) -> Order:
+        if not isinstance(quantity, int) or isinstance(quantity, bool):
+            raise ValidationException("So luong dat mua phai la so nguyen")
         if quantity <= 0:
             raise ValidationException("So luong dat mua phai lon hon 0")
+        if quantity > self.MAX_QUANTITY_PER_ORDER:
+            raise ValidationException(
+                f"Moi don hang chi duoc mua toi da {self.MAX_QUANTITY_PER_ORDER} san pham"
+            )
 
         product = self.product_repo.get_by_id(product_id)
         if not product or product.status != "ACTIVE":
             raise NotFoundException("San pham khong ton tai hoac da ngung ban")
+
+        sale_state = product.sale_state()
+        if sale_state == "UPCOMING":
+            raise ValidationException("Chuong trinh flash sale chua bat dau")
+        if sale_state == "ENDED":
+            raise ValidationException("Chuong trinh flash sale da ket thuc")
+        if sale_state == "SOLD_OUT":
+            raise OutOfStockException("San pham da het hang")
 
         # Kiem tra so luong ton kho
         if product.stock < quantity:
@@ -32,7 +49,7 @@ class OrderService:
 
         # Tao don hang moi
         unit_price = product.flash_sale_price
-        total_price = unit_price * Decimal(quantity)
+        total_price = (unit_price * Decimal(quantity)).quantize(self.MONEY_QUANTUM)
 
         order = Order(
             id=uuid.uuid4(),
