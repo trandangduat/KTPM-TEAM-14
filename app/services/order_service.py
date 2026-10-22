@@ -70,13 +70,14 @@ class OrderService:
             raise NotFoundException("Don hang khong ton tai")
         if order.user_id != user_id:
             raise ForbiddenException("Khong co quyen huy don hang nay")
-        if order.status == "CANCELLED":
-            raise ValidationException("Don hang da bi huy truoc do")
+        if order.status != "PENDING":
+            raise ValidationException("Chi co the huy don hang dang cho xu ly")
 
         # Hoan lai so luong vao kho
         product = self.product_repo.get_by_id(order.product_id)
-        if product:
-            self.product_repo.update_stock(product.id, product.stock + order.quantity)
+        if not product:
+            raise NotFoundException("San pham cua don hang khong con ton tai")
+        self.product_repo.update_stock(product.id, product.stock + order.quantity)
 
         updated_order = self.order_repo.update_status(order_id, "CANCELLED")
         return updated_order
