@@ -10,8 +10,9 @@ from app.services.order_service import OrderService
 
 
 class FakeProductRepository:
-    def __init__(self, product):
+    def __init__(self, product, reservation_succeeds=True):
         self.product = product
+        self.reservation_succeeds = reservation_succeeds
 
     def get_by_id(self, product_id):
         return self.product if self.product.id == product_id else None
@@ -22,12 +23,31 @@ class FakeProductRepository:
         self.product.stock = new_stock
         return self.product
 
+    def reserve_stock(self, product_id, quantity):
+        if (
+            not self.reservation_succeeds
+            or self.product.id != product_id
+            or self.product.stock < quantity
+        ):
+            return None
+        self.product.stock -= quantity
+        return self.product
+
+    def release_stock(self, product_id, quantity):
+        if self.product.id != product_id:
+            return None
+        self.product.stock += quantity
+        return self.product
+
 
 class FakeOrderRepository:
-    def __init__(self):
+    def __init__(self, create_error=None):
         self.orders = []
+        self.create_error = create_error
 
     def create(self, order):
+        if self.create_error:
+            raise self.create_error
         self.orders.append(order)
         return order
 
@@ -115,3 +135,23 @@ def test_create_order_reports_sold_out_product():
 
     with pytest.raises(OutOfStockException, match="het hang"):
         service.create_order(uuid4(), product.id, 1)
+
+
+def test_create_order_rejects_when_atomic_reservation_loses_race():
+    product = make_product(stock=2)
+    product_repository = FakeProductRepository(product, reservation_succeeds=False)
+    service = OrderService(FakeOrderRepository(), product_repository)
+
+    with pytest.raises(OutOfStockException, match="khong du"):
+        service.create_order(uuid4(), product.id, 1)
+    assert product.stock == 2
+
+
+def test_create_order_releases_reserved_stock_when_order_write_fails():
+    product = make_product(stock=5)
+    order_repository = FakeOrderRepository(create_error=RuntimeError("database unavailable"))
+    service = OrderService(order_repository, FakeProductRepository(product))
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        service.create_order(uuid4(), product.id, 2)
+    assert product.stock == 5

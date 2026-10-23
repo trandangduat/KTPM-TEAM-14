@@ -43,12 +43,14 @@ class OrderService:
         if product.stock < quantity:
             raise OutOfStockException("San pham khong du so luong ton kho")
 
-        # Tru ton kho truc tiep trong co so du lieu
-        new_stock = product.stock - quantity
-        self.product_repo.update_stock(product.id, new_stock)
+        # Giu kho bang phep cap nhat co dieu kien de ngan hai don cung mua
+        # mot luong ton kho tai cung thoi diem.
+        reserved_product = self.product_repo.reserve_stock(product.id, quantity)
+        if not reserved_product:
+            raise OutOfStockException("San pham khong du so luong ton kho")
 
         # Tao don hang moi
-        unit_price = product.flash_sale_price
+        unit_price = reserved_product.flash_sale_price
         total_price = (unit_price * Decimal(quantity)).quantize(self.MONEY_QUANTUM)
 
         order = Order(
@@ -61,7 +63,12 @@ class OrderService:
             status="PENDING",
             created_at=datetime.utcnow(),
         )
-        return self.order_repo.create(order)
+        try:
+            return self.order_repo.create(order)
+        except Exception:
+            # Khoi phuc luong hang da giu neu viec ghi don hang that bai.
+            self.product_repo.release_stock(product.id, quantity)
+            raise
 
     def list_user_orders(self, user_id: UUID) -> list[Order]:
         return self.order_repo.list_by_user_id(user_id)
