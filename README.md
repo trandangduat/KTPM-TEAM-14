@@ -92,9 +92,9 @@ erDiagram
 | | `POST` | `/products` | **Admin** | Thêm mới một sản phẩm vào danh sách Flash Sale |
 | | `DELETE`| `/products/{id}` | **Admin** | Xóa một sản phẩm khỏi danh sách Flash Sale |
 | **Orders** | `POST` | `/orders` | **Customer** | Đặt mua sản phẩm Flash Sale |
-| | `GET` | `/orders/me` | Customer | Xem danh sách đơn hàng đã đặt của người dùng hiện tại |
+| | `GET` | `/orders` | Customer | Xem danh sách đơn hàng của người dùng hiện tại |
 | | `GET` | `/orders/{id}` | Customer | Xem chi tiết thông tin một đơn hàng |
-| | `DELETE`| `/orders/{id}` | Customer | Hủy đơn hàng |
+| | `POST` | `/orders/{id}/cancel` | Customer | Hủy đơn hàng |
 | **Hệ thống** | `GET` | `/health` | Public | Kiểm tra trạng thái hoạt động của Backend và kết nối Database |
 
 ## 4. Hướng dẫn chạy dự án

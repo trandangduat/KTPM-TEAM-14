@@ -45,8 +45,8 @@ def create_order(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
-@router.get("/me", response_model=List[OrderResponse], summary="Lich su don hang cua toi")
-def list_my_orders(
+@router.get("", response_model=List[OrderResponse], summary="Danh sach don hang")
+def list_orders(
     order_service: OrderService = Depends(get_order_service),
     current_user: User = Depends(get_current_user),
 ):
@@ -92,7 +92,7 @@ def get_order(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
 
 
-@router.delete("/{order_id}", response_model=OrderResponse, summary="Huy don hang")
+@router.post("/{order_id}/cancel", response_model=OrderResponse, summary="Huy don hang")
 def cancel_order(
     order_id: UUID,
     order_service: OrderService = Depends(get_order_service),
