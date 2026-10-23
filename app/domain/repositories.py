@@ -42,6 +42,14 @@ class ProductRepository(ABC):
         pass
 
     @abstractmethod
+    def reserve_stock(self, product_id: UUID, quantity: int) -> Product | None:
+        pass
+
+    @abstractmethod
+    def release_stock(self, product_id: UUID, quantity: int) -> Product | None:
+        pass
+
+    @abstractmethod
     def delete(self, product_id: UUID) -> bool:
         pass
 

@@ -116,6 +116,40 @@ class SqlAlchemyProductRepository(ProductRepository):
         self.db.refresh(model)
         return self._to_entity(model)
 
+    def reserve_stock(self, product_id: UUID, quantity: int) -> Product | None:
+        updated_rows = (
+            self.db.query(ProductModel)
+            .filter(
+                ProductModel.id == product_id,
+                ProductModel.status == "ACTIVE",
+                ProductModel.stock >= quantity,
+            )
+            .update(
+                {ProductModel.stock: ProductModel.stock - quantity},
+                synchronize_session=False,
+            )
+        )
+        if updated_rows == 0:
+            self.db.rollback()
+            return None
+        self.db.commit()
+        return self.get_by_id(product_id)
+
+    def release_stock(self, product_id: UUID, quantity: int) -> Product | None:
+        updated_rows = (
+            self.db.query(ProductModel)
+            .filter(ProductModel.id == product_id)
+            .update(
+                {ProductModel.stock: ProductModel.stock + quantity},
+                synchronize_session=False,
+            )
+        )
+        if updated_rows == 0:
+            self.db.rollback()
+            return None
+        self.db.commit()
+        return self.get_by_id(product_id)
+
     def delete(self, product_id: UUID) -> bool:
         model = self.db.query(ProductModel).filter(ProductModel.id == product_id).first()
         if not model:
