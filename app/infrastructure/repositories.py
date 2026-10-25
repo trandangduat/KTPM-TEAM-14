@@ -213,3 +213,26 @@ class SqlAlchemyOrderRepository(OrderRepository):
         self.db.commit()
         self.db.refresh(model)
         return self._to_entity(model)
+
+    def transition_status(
+        self,
+        order_id: UUID,
+        expected_status: str,
+        new_status: str,
+    ) -> Order | None:
+        updated_rows = (
+            self.db.query(OrderModel)
+            .filter(
+                OrderModel.id == order_id,
+                OrderModel.status == expected_status,
+            )
+            .update(
+                {OrderModel.status: new_status},
+                synchronize_session=False,
+            )
+        )
+        if updated_rows == 0:
+            self.db.rollback()
+            return None
+        self.db.commit()
+        return self.get_by_id(order_id)

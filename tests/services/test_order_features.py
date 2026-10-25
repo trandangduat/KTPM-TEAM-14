@@ -63,6 +63,13 @@ class FakeOrderRepository:
             order.status = status
         return order
 
+    def transition_status(self, order_id, expected_status, new_status):
+        order = self.get_by_id(order_id)
+        if not order or order.status != expected_status:
+            return None
+        order.status = new_status
+        return order
+
 
 def make_product(**overrides):
     values = {
@@ -155,3 +162,50 @@ def test_create_order_releases_reserved_stock_when_order_write_fails():
     with pytest.raises(RuntimeError, match="database unavailable"):
         service.create_order(uuid4(), product.id, 2)
     assert product.stock == 5
+
+
+def test_cancel_pending_order_restores_stock_once():
+    product = make_product(stock=10)
+    order_repository = FakeOrderRepository()
+    service = OrderService(order_repository, FakeProductRepository(product))
+    user_id = uuid4()
+    order = service.create_order(user_id, product.id, 3)
+
+    cancelled = service.cancel_order(order.id, user_id)
+
+    assert cancelled.status == "CANCELLED"
+    assert product.stock == 10
+    with pytest.raises(ValidationException, match="dang cho xu ly"):
+        service.cancel_order(order.id, user_id)
+    assert product.stock == 10
+
+
+@pytest.mark.parametrize("status", ["CONFIRMED", "COMPLETED", "CANCELLED"])
+def test_cancel_order_rejects_non_pending_status(status):
+    product = make_product(stock=10)
+    order_repository = FakeOrderRepository()
+    service = OrderService(order_repository, FakeProductRepository(product))
+    user_id = uuid4()
+    order = service.create_order(user_id, product.id, 1)
+    order.status = status
+
+    with pytest.raises(ValidationException, match="dang cho xu ly"):
+        service.cancel_order(order.id, user_id)
+
+
+def test_cancel_order_detects_competing_status_transition():
+    product = make_product(stock=10)
+    order_repository = FakeOrderRepository()
+    service = OrderService(order_repository, FakeProductRepository(product))
+    user_id = uuid4()
+    order = service.create_order(user_id, product.id, 2)
+
+    original_transition = order_repository.transition_status
+
+    def lose_race(order_id, expected_status, new_status):
+        original_transition(order_id, expected_status, "CONFIRMED")
+
+    order_repository.transition_status = lose_race
+    with pytest.raises(ValidationException, match="yeu cau khac"):
+        service.cancel_order(order.id, user_id)
+    assert product.stock == 8
