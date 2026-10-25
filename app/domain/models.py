@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
 
@@ -10,7 +9,7 @@ class User:
     id: UUID
     username: str
     password_hash: str
-    full_name: Optional[str]
+    full_name: str | None
     role: str
     created_at: datetime
 
@@ -19,12 +18,12 @@ class User:
 class Product:
     id: UUID
     name: str
-    description: Optional[str]
+    description: str | None
     original_price: Decimal
     flash_sale_price: Decimal
     stock: int
-    start_time: Optional[datetime]
-    end_time: Optional[datetime]
+    start_time: datetime | None
+    end_time: datetime | None
     status: str
     created_at: datetime
 

@@ -1,4 +1,3 @@
-from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -22,11 +21,11 @@ class SqlAlchemyUserRepository(UserRepository):
             created_at=model.created_at,
         )
 
-    def get_by_id(self, user_id: UUID) -> Optional[User]:
+    def get_by_id(self, user_id: UUID) -> User | None:
         model = self.db.query(UserModel).filter(UserModel.id == user_id).first()
         return self._to_entity(model) if model else None
 
-    def get_by_username(self, username: str) -> Optional[User]:
+    def get_by_username(self, username: str) -> User | None:
         model = self.db.query(UserModel).filter(UserModel.username == username).first()
         return self._to_entity(model) if model else None
 
@@ -64,11 +63,11 @@ class SqlAlchemyProductRepository(ProductRepository):
             created_at=model.created_at,
         )
 
-    def get_by_id(self, product_id: UUID) -> Optional[Product]:
+    def get_by_id(self, product_id: UUID) -> Product | None:
         model = self.db.query(ProductModel).filter(ProductModel.id == product_id).first()
         return self._to_entity(model) if model else None
 
-    def list_active(self) -> List[Product]:
+    def list_active(self) -> list[Product]:
         models = self.db.query(ProductModel).filter(ProductModel.status == "ACTIVE").all()
         return [self._to_entity(m) for m in models]
 
@@ -90,7 +89,7 @@ class SqlAlchemyProductRepository(ProductRepository):
         self.db.refresh(model)
         return self._to_entity(model)
 
-    def update_stock(self, product_id: UUID, new_stock: int) -> Optional[Product]:
+    def update_stock(self, product_id: UUID, new_stock: int) -> Product | None:
         model = self.db.query(ProductModel).filter(ProductModel.id == product_id).first()
         if not model:
             return None
@@ -125,11 +124,11 @@ class SqlAlchemyOrderRepository(OrderRepository):
             created_at=model.created_at,
         )
 
-    def get_by_id(self, order_id: UUID) -> Optional[Order]:
+    def get_by_id(self, order_id: UUID) -> Order | None:
         model = self.db.query(OrderModel).filter(OrderModel.id == order_id).first()
         return self._to_entity(model) if model else None
 
-    def list_by_user_id(self, user_id: UUID) -> List[Order]:
+    def list_by_user_id(self, user_id: UUID) -> list[Order]:
         models = self.db.query(OrderModel).filter(OrderModel.user_id == user_id).order_by(OrderModel.created_at.desc()).all()
         return [self._to_entity(m) for m in models]
 
@@ -149,7 +148,7 @@ class SqlAlchemyOrderRepository(OrderRepository):
         self.db.refresh(model)
         return self._to_entity(model)
 
-    def update_status(self, order_id: UUID, status: str) -> Optional[Order]:
+    def update_status(self, order_id: UUID, status: str) -> Order | None:
         model = self.db.query(OrderModel).filter(OrderModel.id == order_id).first()
         if not model:
             return None

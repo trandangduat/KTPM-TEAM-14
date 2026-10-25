@@ -1,4 +1,3 @@
-from typing import Tuple
 from uuid import UUID
 
 from app.domain.models import User
@@ -12,7 +11,7 @@ class AuthService:
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
 
-    def authenticate_user(self, username: str, password: str) -> Tuple[str, User]:
+    def authenticate_user(self, username: str, password: str) -> tuple[str, User]:
         user = self.user_repo.get_by_username(username)
         if not user:
             raise UnauthorizedException("Sai ten dang nhap hoac mat khau")

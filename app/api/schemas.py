@@ -1,6 +1,5 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
 
@@ -19,7 +18,7 @@ class TokenResponse(BaseModel):
 class UserResponse(BaseModel):
     id: UUID
     username: str
-    full_name: Optional[str] = None
+    full_name: str | None = None
     role: str
     created_at: datetime
 
@@ -27,23 +26,23 @@ class UserResponse(BaseModel):
 # Schemas cho san pham
 class ProductCreateRequest(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     original_price: Decimal = Field(..., gt=0)
     flash_sale_price: Decimal = Field(..., gt=0)
     stock: int = Field(..., ge=0)
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
 
 class ProductResponse(BaseModel):
     id: UUID
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     original_price: Decimal
     flash_sale_price: Decimal
     stock: int
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
     status: str
     created_at: datetime
 

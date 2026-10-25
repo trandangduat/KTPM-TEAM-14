@@ -1,4 +1,3 @@
-from typing import List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -11,7 +10,7 @@ from app.services.product_service import ProductService
 router = APIRouter(prefix="/products", tags=["Flash Sale"])
 
 
-@router.get("", response_model=List[ProductResponse], summary="Danh sach san pham Flash Sale")
+@router.get("", response_model=list[ProductResponse], summary="Danh sach san pham Flash Sale")
 def list_products(product_service: ProductService = Depends(get_product_service)):
     """Xem danh sach cac san pham dang mo ban flash sale."""
     products = product_service.list_flash_sale_products()
@@ -95,6 +94,6 @@ def delete_product(
     """Admin xoa mot san pham khoi danh sach flash sale."""
     try:
         product_service.delete_flash_sale_product(product_id)
-        return None
+        return
     except NotFoundException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

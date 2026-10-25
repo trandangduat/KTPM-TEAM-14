@@ -1,0 +1,16 @@
+{
+  "languages": {
+    "Python": {
+      "format_on_save": "on",
+      "formatter": {
+        "language_server": {
+          "name": "ruff"
+        }
+      },
+      "code_actions_on_save": {
+        "source.organizeImports": true,
+        "source.fixAll.ruff": true
+      }
+    }
+  }
+}

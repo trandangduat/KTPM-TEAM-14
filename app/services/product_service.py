@@ -1,7 +1,6 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
 from uuid import UUID
 
 from app.domain.models import Product
@@ -14,7 +13,7 @@ class ProductService:
     def __init__(self, product_repo: ProductRepository):
         self.product_repo = product_repo
 
-    def list_flash_sale_products(self) -> List[Product]:
+    def list_flash_sale_products(self) -> list[Product]:
         return self.product_repo.list_active()
 
     def get_product_detail(self, product_id: UUID) -> Product:
@@ -26,12 +25,12 @@ class ProductService:
     def create_flash_sale_product(
         self,
         name: str,
-        description: Optional[str],
+        description: str | None,
         original_price: Decimal,
         flash_sale_price: Decimal,
         stock: int,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> Product:
         if stock < 0:
             raise ValidationException("So luong ton kho khong the am")

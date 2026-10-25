@@ -1,4 +1,3 @@
-from typing import List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -45,7 +44,7 @@ def create_order(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
-@router.get("", response_model=List[OrderResponse], summary="Danh sach don hang")
+@router.get("", response_model=list[OrderResponse], summary="Danh sach don hang")
 def list_orders(
     order_service: OrderService = Depends(get_order_service),
     current_user: User = Depends(get_current_user),

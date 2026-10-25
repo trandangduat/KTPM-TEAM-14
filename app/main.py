@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, status
+from fastapi import FastAPI, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 

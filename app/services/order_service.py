@@ -1,7 +1,6 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import List
 from uuid import UUID
 
 from app.domain.models import Order
@@ -47,7 +46,7 @@ class OrderService:
         )
         return self.order_repo.create(order)
 
-    def list_user_orders(self, user_id: UUID) -> List[Order]:
+    def list_user_orders(self, user_id: UUID) -> list[Order]:
         return self.order_repo.list_by_user_id(user_id)
 
     def get_order_detail(self, order_id: UUID, user_id: UUID) -> Order:

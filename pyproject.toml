@@ -1,0 +1,10 @@
+[tool.ruff.lint]
+ignore = [
+    "I001",   # isort: unsorted imports
+    "BLE001", # flake8-blind-except: blind Exception catch
+    "DTZ",    # flake8-datetimez: datetime timezone checks
+    "B008",   # flake8-bugbear: function call in argument defaults (FastAPI Depends)
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "Depends"]
