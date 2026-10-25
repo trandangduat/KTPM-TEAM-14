@@ -87,13 +87,26 @@ class OrderService:
             raise NotFoundException("Don hang khong ton tai")
         if order.user_id != user_id:
             raise ForbiddenException("Khong co quyen huy don hang nay")
-        if order.status == "CANCELLED":
-            raise ValidationException("Don hang da bi huy truoc do")
+        if order.status != "PENDING":
+            raise ValidationException("Chi co the huy don hang dang cho xu ly")
 
-        # Hoan lai so luong vao kho
+        # Xac nhan san pham con ton tai truoc khi chuyen trang thai don hang.
         product = self.product_repo.get_by_id(order.product_id)
-        if product:
-            self.product_repo.update_stock(product.id, product.stock + order.quantity)
+        if not product:
+            raise NotFoundException("San pham cua don hang khong con ton tai")
 
-        updated_order = self.order_repo.update_status(order_id, "CANCELLED")
+        # Chuyen trang thai co dieu kien dam bao chi mot yeu cau huy thanh cong.
+        updated_order = self.order_repo.transition_status(
+            order_id,
+            expected_status="PENDING",
+            new_status="CANCELLED",
+        )
+        if not updated_order:
+            raise ValidationException("Don hang da duoc xu ly boi yeu cau khac")
+
+        restored_product = self.product_repo.release_stock(product.id, order.quantity)
+        if not restored_product:
+            # Day la tinh huong bat thuong; khong thu hoan kho lan nua de tranh
+            # cong lap ton kho khi client gui lai yeu cau huy.
+            raise ValidationException("Khong the hoan lai ton kho cho don hang")
         return updated_order

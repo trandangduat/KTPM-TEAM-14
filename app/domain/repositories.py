@@ -71,3 +71,12 @@ class OrderRepository(ABC):
     @abstractmethod
     def update_status(self, order_id: UUID, status: str) -> Order | None:
         pass
+
+    @abstractmethod
+    def transition_status(
+        self,
+        order_id: UUID,
+        expected_status: str,
+        new_status: str,
+    ) -> Order | None:
+        pass
