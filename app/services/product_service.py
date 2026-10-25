@@ -33,21 +33,14 @@ class ProductService:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
     ) -> Product:
-        normalized_name = name.strip()
-        if not normalized_name:
-            raise ValidationException("Ten san pham khong duoc de trong")
         if stock < 0:
             raise ValidationException("So luong ton kho khong the am")
-        if flash_sale_price <= 0 or original_price <= 0:
+        if flash_sale_price < 0 or original_price < 0:
             raise ValidationException("Gia san pham khong hop le")
-        if flash_sale_price > original_price:
-            raise ValidationException("Gia flash sale khong the cao hon gia goc")
-        if start_time and end_time and start_time >= end_time:
-            raise ValidationException("Thoi gian ket thuc phai sau thoi gian bat dau")
 
         product = Product(
             id=uuid.uuid4(),
-            name=normalized_name,
+            name=name,
             description=description,
             original_price=original_price,
             flash_sale_price=flash_sale_price,
