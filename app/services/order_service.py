@@ -23,12 +23,6 @@ class OrderService:
         if not product or product.status != "ACTIVE":
             raise NotFoundException("San pham khong ton tai hoac da ngung ban")
 
-        current_time = datetime.utcnow()
-        if product.start_time and current_time < product.start_time:
-            raise ValidationException("Chuong trinh flash sale chua bat dau")
-        if product.end_time and current_time >= product.end_time:
-            raise ValidationException("Chuong trinh flash sale da ket thuc")
-
         # Kiem tra so luong ton kho
         if product.stock < quantity:
             raise OutOfStockException("San pham khong du so luong ton kho")
@@ -70,14 +64,13 @@ class OrderService:
             raise NotFoundException("Don hang khong ton tai")
         if order.user_id != user_id:
             raise ForbiddenException("Khong co quyen huy don hang nay")
-        if order.status != "PENDING":
-            raise ValidationException("Chi co the huy don hang dang cho xu ly")
+        if order.status == "CANCELLED":
+            raise ValidationException("Don hang da bi huy truoc do")
 
         # Hoan lai so luong vao kho
         product = self.product_repo.get_by_id(order.product_id)
-        if not product:
-            raise NotFoundException("San pham cua don hang khong con ton tai")
-        self.product_repo.update_stock(product.id, product.stock + order.quantity)
+        if product:
+            self.product_repo.update_stock(product.id, product.stock + order.quantity)
 
         updated_order = self.order_repo.update_status(order_id, "CANCELLED")
         return updated_order
