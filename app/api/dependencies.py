@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -47,37 +47,41 @@ def get_order_service(
     return OrderService(order_repo, product_repo)
 
 
+def _unauthorized(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> User:
+    """Xac thuc token va gan nguoi dung vao request.state.user.
+
+    Duoc gan o cap router (APIRouter(dependencies=[...])) nen cac endpoint
+    khong phai khai bao lai; endpoint doc nguoi dung qua request.state.user.
+    """
     if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Thieu token xac thuc",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Thieu token xac thuc")
 
     payload = decode_access_token(credentials.credentials)
     if not payload or "sub" not in payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token khong hop le hoac da het han",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Token khong hop le hoac da het han")
 
     # Chi bat loi lien quan den token/nguoi dung. Loi CSDL (nghen pool,
     # mat ket noi...) duoc de lot ra thanh 5xx, khong bi bien thanh 401.
     try:
         user_id = UUID(payload["sub"])
         user = auth_service.get_current_user_profile(user_id)
-        return user
     except (ValueError, TypeError, NotFoundException):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Khong the xac thuc nguoi dung",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Khong the xac thuc nguoi dung")
+
+    request.state.user = user
+    return user
 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:

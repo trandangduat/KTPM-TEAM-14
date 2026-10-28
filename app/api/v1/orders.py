@@ -1,9 +1,8 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.dependencies import get_order_service, get_current_user
 from app.api.schemas import OrderCreateRequest, OrderResponse
-from app.domain.models import User
 from app.domain.exceptions import (
     NotFoundException,
     ValidationException,
@@ -12,19 +11,25 @@ from app.domain.exceptions import (
 )
 from app.services.order_service import OrderService
 
-router = APIRouter(prefix="/orders", tags=["Orders"])
+# Toan bo router yeu cau xac thuc: get_current_user chay mot lan o cap router
+# va gan nguoi dung vao request.state.user.
+router = APIRouter(
+    prefix="/orders",
+    tags=["Orders"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.post("", response_model=OrderResponse, status_code=status.HTTP_201_CREATED, summary="Dat mua san pham Flash Sale")
 def create_order(
+    request: Request,
     payload: OrderCreateRequest,
     order_service: OrderService = Depends(get_order_service),
-    current_user: User = Depends(get_current_user),
 ):
     """Khach hang dat mua san pham flash sale."""
     try:
         order = order_service.create_order(
-            user_id=current_user.id,
+            user_id=request.state.user.id,
             product_id=payload.product_id,
             quantity=payload.quantity,
         )
@@ -46,11 +51,11 @@ def create_order(
 
 @router.get("", response_model=list[OrderResponse], summary="Danh sach don hang")
 def list_orders(
+    request: Request,
     order_service: OrderService = Depends(get_order_service),
-    current_user: User = Depends(get_current_user),
 ):
     """Xem danh sach don hang cua nguoi dung dang dang nhap."""
-    orders = order_service.list_user_orders(current_user.id)
+    orders = order_service.list_user_orders(request.state.user.id)
     return [
         OrderResponse(
             id=o.id,
@@ -68,13 +73,13 @@ def list_orders(
 
 @router.get("/{order_id}", response_model=OrderResponse, summary="Chi tiet don hang")
 def get_order(
+    request: Request,
     order_id: UUID,
     order_service: OrderService = Depends(get_order_service),
-    current_user: User = Depends(get_current_user),
 ):
     """Xem chi tiet mot don hang cu the."""
     try:
-        order = order_service.get_order_detail(order_id, current_user.id)
+        order = order_service.get_order_detail(order_id, request.state.user.id)
         return OrderResponse(
             id=order.id,
             user_id=order.user_id,
@@ -93,13 +98,13 @@ def get_order(
 
 @router.post("/{order_id}/cancel", response_model=OrderResponse, summary="Huy don hang")
 def cancel_order(
+    request: Request,
     order_id: UUID,
     order_service: OrderService = Depends(get_order_service),
-    current_user: User = Depends(get_current_user),
 ):
     """Huy don hang va hoan lai so luong vao ton kho."""
     try:
-        order = order_service.cancel_order(order_id, current_user.id)
+        order = order_service.cancel_order(order_id, request.state.user.id)
         return OrderResponse(
             id=order.id,
             user_id=order.user_id,

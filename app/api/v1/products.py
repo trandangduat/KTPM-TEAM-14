@@ -3,11 +3,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_product_service, require_admin
 from app.api.schemas import ProductCreateRequest, ProductResponse
-from app.domain.models import User
-from app.domain.exceptions import NotFoundException, ValidationException
+from app.domain.exceptions import ConflictException, NotFoundException, ValidationException
 from app.services.product_service import ProductService
 
+# Route cong khai: xem san pham
 router = APIRouter(prefix="/products", tags=["Flash Sale"])
+
+# Route quan tri: require_admin (gom ca xac thuc) gan o cap router
+admin_router = APIRouter(
+    prefix="/products",
+    tags=["Flash Sale"],
+    dependencies=[Depends(require_admin)],
+)
 
 
 @router.get("", response_model=list[ProductResponse], summary="Danh sach san pham Flash Sale")
@@ -52,11 +59,10 @@ def get_product(product_id: UUID, product_service: ProductService = Depends(get_
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-@router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED, summary="Them san pham Flash Sale")
+@admin_router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED, summary="Them san pham Flash Sale")
 def create_product(
     payload: ProductCreateRequest,
     product_service: ProductService = Depends(get_product_service),
-    current_admin: User = Depends(require_admin),
 ):
     """Admin them moi mot san pham vao danh sach flash sale."""
     try:
@@ -85,11 +91,10 @@ def create_product(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
-@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Xoa san pham Flash Sale")
+@admin_router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Xoa san pham Flash Sale")
 def delete_product(
     product_id: UUID,
     product_service: ProductService = Depends(get_product_service),
-    current_admin: User = Depends(require_admin),
 ):
     """Admin xoa mot san pham khoi danh sach flash sale."""
     try:
@@ -97,3 +102,5 @@ def delete_product(
         return
     except NotFoundException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except ConflictException as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
