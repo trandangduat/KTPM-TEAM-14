@@ -185,8 +185,20 @@ class SqlAlchemyOrderRepository(OrderRepository):
         model = self.db.query(OrderModel).filter(OrderModel.id == order_id).first()
         return self._to_entity(model) if model else None
 
-    def list_by_user_id(self, user_id: UUID) -> list[Order]:
-        models = self.db.query(OrderModel).filter(OrderModel.user_id == user_id).order_by(OrderModel.created_at.desc()).all()
+    def list_by_user_id(
+        self,
+        user_id: UUID,
+        status: str | None = None,
+        offset: int = 0,
+        limit: int | None = None,
+    ) -> list[Order]:
+        query = self.db.query(OrderModel).filter(OrderModel.user_id == user_id)
+        if status:
+            query = query.filter(OrderModel.status == status)
+        query = query.order_by(OrderModel.created_at.desc()).offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+        models = query.all()
         return [self._to_entity(m) for m in models]
 
     def create(self, order: Order) -> Order:

@@ -136,3 +136,11 @@ class OrderResponse(BaseModel):
     total_price: Decimal
     status: str
     created_at: datetime
+
+
+class OrderSummaryResponse(BaseModel):
+    total_orders: int
+    pending_orders: int
+    completed_orders: int
+    cancelled_orders: int
+    total_spent: Decimal

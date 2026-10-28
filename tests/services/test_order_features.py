@@ -54,8 +54,11 @@ class FakeOrderRepository:
     def get_by_id(self, order_id):
         return next((order for order in self.orders if order.id == order_id), None)
 
-    def list_by_user_id(self, user_id):
-        return [order for order in self.orders if order.user_id == user_id]
+    def list_by_user_id(self, user_id, status=None, offset=0, limit=None):
+        orders = [order for order in self.orders if order.user_id == user_id]
+        if status:
+            orders = [order for order in orders if order.status == status]
+        return orders[offset:] if limit is None else orders[offset : offset + limit]
 
     def update_status(self, order_id, status):
         order = self.get_by_id(order_id)
@@ -209,3 +212,61 @@ def test_cancel_order_detects_competing_status_transition():
     with pytest.raises(ValidationException, match="yeu cau khac"):
         service.cancel_order(order.id, user_id)
     assert product.stock == 8
+
+
+def test_list_orders_filters_status_and_applies_pagination():
+    product = make_product(stock=30)
+    order_repository = FakeOrderRepository()
+    service = OrderService(order_repository, FakeProductRepository(product))
+    user_id = uuid4()
+    orders = [service.create_order(user_id, product.id, 1) for _ in range(5)]
+    orders[1].status = "CANCELLED"
+    orders[3].status = "CANCELLED"
+
+    result = service.list_user_orders(
+        user_id,
+        order_status="pending",
+        offset=1,
+        limit=2,
+    )
+
+    assert result == [orders[2], orders[4]]
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"order_status": "UNKNOWN"},
+        {"offset": -1},
+        {"limit": 0},
+        {"limit": 101},
+    ],
+)
+def test_list_orders_rejects_invalid_filter_options(options):
+    service = OrderService(FakeOrderRepository(), FakeProductRepository(make_product()))
+
+    with pytest.raises(ValidationException):
+        service.list_user_orders(uuid4(), **options)
+
+
+def test_order_summary_counts_statuses_and_excludes_cancelled_spending():
+    product = make_product(stock=20, flash_sale_price=Decimal("100.00"))
+    order_repository = FakeOrderRepository()
+    service = OrderService(order_repository, FakeProductRepository(product))
+    user_id = uuid4()
+    pending = service.create_order(user_id, product.id, 2)
+    completed = service.create_order(user_id, product.id, 3)
+    cancelled = service.create_order(user_id, product.id, 1)
+    completed.status = "COMPLETED"
+    cancelled.status = "CANCELLED"
+
+    summary = service.get_user_order_summary(user_id)
+
+    assert summary == {
+        "total_orders": 3,
+        "pending_orders": 1,
+        "completed_orders": 1,
+        "cancelled_orders": 1,
+        "total_spent": Decimal("500.00"),
+    }
+    assert pending.status == "PENDING"
