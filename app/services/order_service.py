@@ -70,8 +70,41 @@ class OrderService:
             self.product_repo.release_stock(product.id, quantity)
             raise
 
-    def list_user_orders(self, user_id: UUID) -> list[Order]:
-        return self.order_repo.list_by_user_id(user_id)
+    def list_user_orders(
+        self,
+        user_id: UUID,
+        order_status: str | None = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> list[Order]:
+        allowed_statuses = {"PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"}
+        normalized_status = order_status.upper() if order_status else None
+        if normalized_status and normalized_status not in allowed_statuses:
+            raise ValidationException("Trang thai don hang khong hop le")
+        if offset < 0:
+            raise ValidationException("Vi tri bat dau khong the am")
+        if limit < 1 or limit > 100:
+            raise ValidationException("So don hang moi trang phai tu 1 den 100")
+        return self.order_repo.list_by_user_id(
+            user_id,
+            status=normalized_status,
+            offset=offset,
+            limit=limit,
+        )
+
+    def get_user_order_summary(self, user_id: UUID) -> dict[str, int | Decimal]:
+        orders = self.order_repo.list_by_user_id(user_id)
+        active_orders = [order for order in orders if order.status != "CANCELLED"]
+        return {
+            "total_orders": len(orders),
+            "pending_orders": sum(order.status == "PENDING" for order in orders),
+            "completed_orders": sum(order.status == "COMPLETED" for order in orders),
+            "cancelled_orders": sum(order.status == "CANCELLED" for order in orders),
+            "total_spent": sum(
+                (order.total_price for order in active_orders),
+                start=Decimal("0.00"),
+            ),
+        }
 
     def get_order_detail(self, order_id: UUID, user_id: UUID) -> Order:
         order = self.order_repo.get_by_id(order_id)

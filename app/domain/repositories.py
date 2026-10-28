@@ -61,7 +61,13 @@ class OrderRepository(ABC):
         pass
 
     @abstractmethod
-    def list_by_user_id(self, user_id: UUID) -> list[Order]:
+    def list_by_user_id(
+        self,
+        user_id: UUID,
+        status: str | None = None,
+        offset: int = 0,
+        limit: int | None = None,
+    ) -> list[Order]:
         pass
 
     @abstractmethod
