@@ -20,3 +20,7 @@ class UnauthorizedException(DomainException):
 
 class ForbiddenException(DomainException):
     pass
+
+
+class ConflictException(DomainException):
+    pass

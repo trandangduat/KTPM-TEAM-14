@@ -1,6 +1,8 @@
 from uuid import UUID
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.domain.exceptions import ConflictException
 from app.domain.models import User, Product, Order
 from app.domain.repositories import UserRepository, ProductRepository, OrderRepository
 from app.infrastructure.models import UserModel, ProductModel, OrderModel
@@ -103,7 +105,12 @@ class SqlAlchemyProductRepository(ProductRepository):
         if not model:
             return False
         self.db.delete(model)
-        self.db.commit()
+        try:
+            self.db.commit()
+        except IntegrityError:
+            # San pham da co don hang tham chieu (khoa ngoai orders.product_id)
+            self.db.rollback()
+            raise ConflictException("San pham da co don hang, khong the xoa")
         return True
 
 
