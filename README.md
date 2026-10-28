@@ -80,6 +80,47 @@ erDiagram
     }
 ```
 
+### 2.3. Tổ chức mã nguồn
+
+Framework: FastAPI
+
+| Thư viện                         | Vai trò                                       |
+| :------------------------------- | :-------------------------------------------- |
+| Uvicorn                          | Chạy ứng dụng FastAPI.                        |
+| Pydantic                         | Định nghĩa schema.                            |
+| SQLAlchemy                       | Ánh xạ bảng, truy vấn và quản lý transaction. |
+| Psycopg                          | Kết nối PostgreSQL.                           |
+| Python JOSE                      | Tạo và xác minh JWT.                          |
+| Passlib và bcrypt                | Băm và kiểm tra mật khẩu.                     |
+
+```text
+app/
+├── api/                        Presentation Layer
+│   ├── v1/
+│   │   ├── router.py           Tổng hợp các router
+│   │   ├── auth.py             Đăng nhập, đăng xuất và thông tin cá nhân
+│   │   ├── products.py         API sản phẩm
+│   │   └── orders.py           API đơn hàng
+│   ├── schemas.py              Schema request/response
+│   └── dependencies.py         Cung cấp dependency, xác thực và phân quyền
+├── services/                   Business Layer: xử lý nghiệp vụ
+│   ├── auth_service.py         Xác thực người dùng
+│   ├── product_service.py      Quản lý sản phẩm
+│   └── order_service.py        Đặt và hủy đơn hàng
+├── domain/                     Business Layer: các định nghĩa nghiệp vụ
+│   ├── models.py               Entity người dùng, sản phẩm và đơn hàng
+│   ├── repositories.py         Interface repository
+│   └── exceptions.py           Lỗi nghiệp vụ
+├── infrastructure/             Persistence Layer
+│   ├── models.py               ORM model
+│   └── repositories.py         Repository SQLAlchemy
+├── core/                       Các thành phần hỗ trợ
+│   ├── config.py               Cấu hình ứng dụng
+│   ├── database.py             Kết nối và session CSDL
+│   └── security.py             Mật khẩu và JWT
+└── main.py                     Khởi tạo ứng dụng và đăng ký router
+```
+
 ## 3. Đặc tả các REST API
 
 - Base URL: `/api/v1`
