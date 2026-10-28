@@ -24,7 +24,7 @@ Nghiệp vụ cơ bản:
 Hệ thống được tổ chức thành ba lớp: Presentation Layer, Business Layer và Persistence Layer:
 
 ```mermaid
-flowchart TD
+flowchart LR
     Client(["Client"]) --> Presentation["Presentation Layer"]
     Presentation --> Business["Business Layer"]
     Business --> Persistence["Persistence Layer"]
@@ -37,50 +37,7 @@ flowchart TD
 
 - Persistence Layer: Chịu trách nhiệm quản lý và tương tác với cơ sở dữ liệu PostgreSQL.
 
-### 2.2. Mô hình dữ liệu
-
-Hệ thống sử dụng cơ sở dữ liệu quan hệ PostgreSQL với 3 bảng chính:
-
-```mermaid
-erDiagram
-    USERS ||--o{ ORDERS : "places"
-    PRODUCTS ||--o{ ORDERS : "contains"
-
-    USERS {
-        uuid id PK
-        string username UK
-        string password_hash
-        string full_name
-        string role "CUSTOMER | ADMIN"
-        datetime created_at
-    }
-
-    PRODUCTS {
-        uuid id PK
-        string name
-        text description
-        decimal original_price
-        decimal flash_sale_price
-        int stock "Số lượng tồn kho khả dụng"
-        datetime start_time
-        datetime end_time
-        string status "ACTIVE | INACTIVE"
-        datetime created_at
-    }
-
-    ORDERS {
-        uuid id PK
-        uuid user_id FK
-        uuid product_id FK
-        int quantity
-        decimal unit_price
-        decimal total_price
-        string status "PENDING | COMPLETED | CANCELLED"
-        datetime created_at
-    }
-```
-
-### 2.3. Tổ chức mã nguồn
+### 2.2. Tổ chức mã nguồn
 
 Framework: FastAPI
 
