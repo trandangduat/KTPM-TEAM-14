@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import decode_access_token
+from app.domain.exceptions import NotFoundException
 from app.domain.models import User
 from app.domain.repositories import UserRepository, ProductRepository, OrderRepository
 from app.infrastructure.repositories import (
@@ -65,11 +66,13 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Chi bat loi lien quan den token/nguoi dung. Loi CSDL (nghen pool,
+    # mat ket noi...) duoc de lot ra thanh 5xx, khong bi bien thanh 401.
     try:
         user_id = UUID(payload["sub"])
         user = auth_service.get_current_user_profile(user_id)
         return user
-    except Exception:
+    except (ValueError, TypeError, NotFoundException):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Khong the xac thuc nguoi dung",
