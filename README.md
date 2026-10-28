@@ -80,6 +80,8 @@ app/
 
 ## 3. Đặc tả các REST API
 
+- Đặc tả OpenAPI: [openapi.json](openapi.json).
+- Xem và thử API bằng Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs) sau khi khởi động hệ thống.
 - Base URL: `/api/v1`
 - Xác thực: Gửi kèm header `Authorization: Bearer <access_token>` đối với các route yêu cầu xác thực.
 
@@ -145,14 +147,52 @@ python -m scripts.seed
 uvicorn app.main:app --reload
 ```
 
-## 5. Định hướng cải tiến ở Pha 2
+## 5. Kết quả kiểm thử thực tế trên Kaggle
 
-Điểm nghẽn dự kiến ở Pha 1:
+### 5.1. Tổng quan môi trường kiểm thử
 
-- Kịch bản test tải với ~1000 request đồng thời gửi tới `POST /orders` cho cùng một sản phẩm có số lượng tồn kho giới hạn.
-- Hiện tượng: Xảy ra Race Condition, nguy cơ bán vượt số lượng tồn kho nếu không xử lý đồng thời tốt, hoặc Database bị nghẽn dẫn đến thời gian phản hồi tăng.
+- Cấu hình: 4 CPU logic, RAM 31,3 GiB.
+- Kiểm thử trên endpoint `POST /api/v1/orders`.
+- Chỉ số đánh giá: Số request thành công, số request lỗi, tồn kho và thời gian phản hồi p95.
 
-Định hướng tối ưu ở Pha 2:
+### 5.2. Kịch bản thứ 1
 
-- Áp dụng **Redis Caching** để kiểm tra và trừ tồn kho tức thì với độ trễ tối thiểu.
-- Ứng dụng **Message Queue (RabbitMQ, Kafka)** để chuyển đổi luồng xử lý đơn hàng từ đồng bộ sang bất đồng bộ, giải phóng áp lực ghi trực tiếp lên cơ sở dữ liệu.
+Kịch bản kiểm thử:
+
+- Khởi tạo một sản phẩm có số lượng tồn kho là 100.
+- Gửi đồng thời 20 request đặt mua sản phẩm.
+- Kiểm tra số đơn hàng được tạo và số lượng tồn kho còn lại.
+
+Kết quả:
+
+| Request đồng thời | Đơn tạo thành công | Tồn kho mong đợi | Tồn kho thực tế | Số lượng trừ thiếu |
+| ---: | ---: | ---: | ---: | ---: |
+| 20 | 20 | 80 | 97 | 17 |
+
+ Hệ thống chưa đảm bảo tính nhất quán của dữ liệu tồn kho khi xử lý các request đặt hàng đồng thời.
+
+### 5.3. Kịch bản thứ 2
+
+Kịch bản kiểm thử:
+
+- Khởi tạo một sản phẩm có số lượng tồn kho là 10000 cho mỗi mức tải.
+- Gửi tổng cộng 1000 request đặt mua sản phẩm, lần lượt với 10, 50, 100 và 200 client đồng thời. 
+- Kiểm tra kết quả xử lý, thời gian phản hồi và số lượng tồn kho còn lại. Nếu tạo đủ 1000 đơn thì số lượng hàng tồn kho phải còn 9000.
+
+Kết quả:
+
+| Client đồng thời | HTTP mã 201 | HTTP mã 401 | Timeout | Tồn kho thực tế | p95 (ms) |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 10 | 1000 | 0 | 0 | 9548 | 125 |
+| 50 | 1000 | 0 | 0 | 9852 | 705 |
+| 100 | 960 | 40 | 0 | 9787 | 30622 |
+| 200 | 0 | 40 | 960 | --- | 60336 |
+
+Nhận xét:
+
+- Ở các mức 10 và 50 client, cả 1000 request đều tạo đơn thành công nhưng số lượng tồn kho vẫn bị tính sai.
+- Ở mức 100 client xuất hiện 40 request trả HTTP 401, lý do có thể nằm ở việc code xử lý Exception khi database bị nghẽn.
+- Khi tăng từ 10 lên 100 client, thời gian phản hồi p95 tăng từ khoảng 125ms lên hơn 30 giây.
+- Ở mức 200 client, 960 request bị timeout.
+
+Khi số lượng request đặt hàng đồng thời tăng cao, hệ thống phản hồi chậm và khả năng xử lý chưa ổn định.
