@@ -10,29 +10,48 @@ from app.domain.exceptions import NotFoundException, ValidationException, OutOfS
 
 class OrderService:
 
+    MAX_QUANTITY_PER_ORDER = 20
+    MONEY_QUANTUM = Decimal("0.01")
+
     def __init__(self, order_repo: OrderRepository, product_repo: ProductRepository):
         self.order_repo = order_repo
         self.product_repo = product_repo
 
     def create_order(self, user_id: UUID, product_id: UUID, quantity: int) -> Order:
+        if not isinstance(quantity, int) or isinstance(quantity, bool):
+            raise ValidationException("So luong dat mua phai la so nguyen")
         if quantity <= 0:
             raise ValidationException("So luong dat mua phai lon hon 0")
+        if quantity > self.MAX_QUANTITY_PER_ORDER:
+            raise ValidationException(
+                f"Moi don hang chi duoc mua toi da {self.MAX_QUANTITY_PER_ORDER} san pham"
+            )
 
         product = self.product_repo.get_by_id(product_id)
         if not product or product.status != "ACTIVE":
             raise NotFoundException("San pham khong ton tai hoac da ngung ban")
 
+        sale_state = product.sale_state()
+        if sale_state == "UPCOMING":
+            raise ValidationException("Chuong trinh flash sale chua bat dau")
+        if sale_state == "ENDED":
+            raise ValidationException("Chuong trinh flash sale da ket thuc")
+        if sale_state == "SOLD_OUT":
+            raise OutOfStockException("San pham da het hang")
+
         # Kiem tra so luong ton kho
         if product.stock < quantity:
             raise OutOfStockException("San pham khong du so luong ton kho")
 
-        # Tru ton kho truc tiep trong co so du lieu
-        new_stock = product.stock - quantity
-        self.product_repo.update_stock(product.id, new_stock)
+        # Giu kho bang phep cap nhat co dieu kien de ngan hai don cung mua
+        # mot luong ton kho tai cung thoi diem.
+        reserved_product = self.product_repo.reserve_stock(product.id, quantity)
+        if not reserved_product:
+            raise OutOfStockException("San pham khong du so luong ton kho")
 
         # Tao don hang moi
-        unit_price = product.flash_sale_price
-        total_price = unit_price * Decimal(quantity)
+        unit_price = reserved_product.flash_sale_price
+        total_price = (unit_price * Decimal(quantity)).quantize(self.MONEY_QUANTUM)
 
         order = Order(
             id=uuid.uuid4(),
@@ -44,10 +63,48 @@ class OrderService:
             status="PENDING",
             created_at=datetime.utcnow(),
         )
-        return self.order_repo.create(order)
+        try:
+            return self.order_repo.create(order)
+        except Exception:
+            # Khoi phuc luong hang da giu neu viec ghi don hang that bai.
+            self.product_repo.release_stock(product.id, quantity)
+            raise
 
-    def list_user_orders(self, user_id: UUID) -> list[Order]:
-        return self.order_repo.list_by_user_id(user_id)
+    def list_user_orders(
+        self,
+        user_id: UUID,
+        order_status: str | None = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> list[Order]:
+        allowed_statuses = {"PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"}
+        normalized_status = order_status.upper() if order_status else None
+        if normalized_status and normalized_status not in allowed_statuses:
+            raise ValidationException("Trang thai don hang khong hop le")
+        if offset < 0:
+            raise ValidationException("Vi tri bat dau khong the am")
+        if limit < 1 or limit > 100:
+            raise ValidationException("So don hang moi trang phai tu 1 den 100")
+        return self.order_repo.list_by_user_id(
+            user_id,
+            status=normalized_status,
+            offset=offset,
+            limit=limit,
+        )
+
+    def get_user_order_summary(self, user_id: UUID) -> dict[str, int | Decimal]:
+        orders = self.order_repo.list_by_user_id(user_id)
+        active_orders = [order for order in orders if order.status != "CANCELLED"]
+        return {
+            "total_orders": len(orders),
+            "pending_orders": sum(order.status == "PENDING" for order in orders),
+            "completed_orders": sum(order.status == "COMPLETED" for order in orders),
+            "cancelled_orders": sum(order.status == "CANCELLED" for order in orders),
+            "total_spent": sum(
+                (order.total_price for order in active_orders),
+                start=Decimal("0.00"),
+            ),
+        }
 
     def get_order_detail(self, order_id: UUID, user_id: UUID) -> Order:
         order = self.order_repo.get_by_id(order_id)
@@ -63,13 +120,26 @@ class OrderService:
             raise NotFoundException("Don hang khong ton tai")
         if order.user_id != user_id:
             raise ForbiddenException("Khong co quyen huy don hang nay")
-        if order.status == "CANCELLED":
-            raise ValidationException("Don hang da bi huy truoc do")
+        if order.status != "PENDING":
+            raise ValidationException("Chi co the huy don hang dang cho xu ly")
 
-        # Hoan lai so luong vao kho
+        # Xac nhan san pham con ton tai truoc khi chuyen trang thai don hang.
         product = self.product_repo.get_by_id(order.product_id)
-        if product:
-            self.product_repo.update_stock(product.id, product.stock + order.quantity)
+        if not product:
+            raise NotFoundException("San pham cua don hang khong con ton tai")
 
-        updated_order = self.order_repo.update_status(order_id, "CANCELLED")
+        # Chuyen trang thai co dieu kien dam bao chi mot yeu cau huy thanh cong.
+        updated_order = self.order_repo.transition_status(
+            order_id,
+            expected_status="PENDING",
+            new_status="CANCELLED",
+        )
+        if not updated_order:
+            raise ValidationException("Don hang da duoc xu ly boi yeu cau khac")
+
+        restored_product = self.product_repo.release_stock(product.id, order.quantity)
+        if not restored_product:
+            # Day la tinh huong bat thuong; khong thu hoan kho lan nua de tranh
+            # cong lap ton kho khi client gui lai yeu cau huy.
+            raise ValidationException("Khong the hoan lai ton kho cho don hang")
         return updated_order

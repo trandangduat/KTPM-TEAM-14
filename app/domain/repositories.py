@@ -34,7 +34,19 @@ class ProductRepository(ABC):
         pass
 
     @abstractmethod
+    def update(self, product: Product) -> Product:
+        pass
+
+    @abstractmethod
     def update_stock(self, product_id: UUID, new_stock: int) -> Product | None:
+        pass
+
+    @abstractmethod
+    def reserve_stock(self, product_id: UUID, quantity: int) -> Product | None:
+        pass
+
+    @abstractmethod
+    def release_stock(self, product_id: UUID, quantity: int) -> Product | None:
         pass
 
     @abstractmethod
@@ -49,7 +61,13 @@ class OrderRepository(ABC):
         pass
 
     @abstractmethod
-    def list_by_user_id(self, user_id: UUID) -> list[Order]:
+    def list_by_user_id(
+        self,
+        user_id: UUID,
+        status: str | None = None,
+        offset: int = 0,
+        limit: int | None = None,
+    ) -> list[Order]:
         pass
 
     @abstractmethod
@@ -58,4 +76,13 @@ class OrderRepository(ABC):
 
     @abstractmethod
     def update_status(self, order_id: UUID, status: str) -> Order | None:
+        pass
+
+    @abstractmethod
+    def transition_status(
+        self,
+        order_id: UUID,
+        expected_status: str,
+        new_status: str,
+    ) -> Order | None:
         pass
