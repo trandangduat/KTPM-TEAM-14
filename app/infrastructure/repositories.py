@@ -91,22 +91,6 @@ class SqlAlchemyProductRepository(ProductRepository):
         self.db.refresh(model)
         return self._to_entity(model)
 
-    def update(self, product: Product) -> Product:
-        model = self.db.query(ProductModel).filter(ProductModel.id == product.id).first()
-        if not model:
-            raise ConflictException("San pham khong con ton tai de cap nhat")
-        model.name = product.name
-        model.description = product.description
-        model.original_price = product.original_price
-        model.flash_sale_price = product.flash_sale_price
-        model.stock = product.stock
-        model.start_time = product.start_time
-        model.end_time = product.end_time
-        model.status = product.status
-        self.db.commit()
-        self.db.refresh(model)
-        return self._to_entity(model)
-
     def update_stock(self, product_id: UUID, new_stock: int) -> Product | None:
         model = self.db.query(ProductModel).filter(ProductModel.id == product_id).first()
         if not model:
@@ -115,40 +99,6 @@ class SqlAlchemyProductRepository(ProductRepository):
         self.db.commit()
         self.db.refresh(model)
         return self._to_entity(model)
-
-    def reserve_stock(self, product_id: UUID, quantity: int) -> Product | None:
-        updated_rows = (
-            self.db.query(ProductModel)
-            .filter(
-                ProductModel.id == product_id,
-                ProductModel.status == "ACTIVE",
-                ProductModel.stock >= quantity,
-            )
-            .update(
-                {ProductModel.stock: ProductModel.stock - quantity},
-                synchronize_session=False,
-            )
-        )
-        if updated_rows == 0:
-            self.db.rollback()
-            return None
-        self.db.commit()
-        return self.get_by_id(product_id)
-
-    def release_stock(self, product_id: UUID, quantity: int) -> Product | None:
-        updated_rows = (
-            self.db.query(ProductModel)
-            .filter(ProductModel.id == product_id)
-            .update(
-                {ProductModel.stock: ProductModel.stock + quantity},
-                synchronize_session=False,
-            )
-        )
-        if updated_rows == 0:
-            self.db.rollback()
-            return None
-        self.db.commit()
-        return self.get_by_id(product_id)
 
     def delete(self, product_id: UUID) -> bool:
         model = self.db.query(ProductModel).filter(ProductModel.id == product_id).first()
@@ -185,20 +135,8 @@ class SqlAlchemyOrderRepository(OrderRepository):
         model = self.db.query(OrderModel).filter(OrderModel.id == order_id).first()
         return self._to_entity(model) if model else None
 
-    def list_by_user_id(
-        self,
-        user_id: UUID,
-        status: str | None = None,
-        offset: int = 0,
-        limit: int | None = None,
-    ) -> list[Order]:
-        query = self.db.query(OrderModel).filter(OrderModel.user_id == user_id)
-        if status:
-            query = query.filter(OrderModel.status == status)
-        query = query.order_by(OrderModel.created_at.desc()).offset(offset)
-        if limit is not None:
-            query = query.limit(limit)
-        models = query.all()
+    def list_by_user_id(self, user_id: UUID) -> list[Order]:
+        models = self.db.query(OrderModel).filter(OrderModel.user_id == user_id).order_by(OrderModel.created_at.desc()).all()
         return [self._to_entity(m) for m in models]
 
     def create(self, order: Order) -> Order:
@@ -225,26 +163,3 @@ class SqlAlchemyOrderRepository(OrderRepository):
         self.db.commit()
         self.db.refresh(model)
         return self._to_entity(model)
-
-    def transition_status(
-        self,
-        order_id: UUID,
-        expected_status: str,
-        new_status: str,
-    ) -> Order | None:
-        updated_rows = (
-            self.db.query(OrderModel)
-            .filter(
-                OrderModel.id == order_id,
-                OrderModel.status == expected_status,
-            )
-            .update(
-                {OrderModel.status: new_status},
-                synchronize_session=False,
-            )
-        )
-        if updated_rows == 0:
-            self.db.rollback()
-            return None
-        self.db.commit()
-        return self.get_by_id(order_id)
