@@ -1,8 +1,8 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.dependencies import get_order_service, get_current_user
-from app.api.schemas import OrderCreateRequest, OrderResponse, OrderSummaryResponse
+from app.api.schemas import OrderCreateRequest, OrderResponse
 from app.domain.exceptions import (
     NotFoundException,
     ValidationException,
@@ -52,21 +52,10 @@ def create_order(
 @router.get("", response_model=list[OrderResponse], summary="Danh sach don hang")
 def list_orders(
     request: Request,
-    order_status: str | None = Query(default=None, alias="status"),
-    offset: int = Query(default=0, ge=0),
-    limit: int = Query(default=20, ge=1, le=100),
     order_service: OrderService = Depends(get_order_service),
 ):
     """Xem danh sach don hang cua nguoi dung dang dang nhap."""
-    try:
-        orders = order_service.list_user_orders(
-            request.state.user.id,
-            order_status=order_status,
-            offset=offset,
-            limit=limit,
-        )
-    except ValidationException as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    orders = order_service.list_user_orders(request.state.user.id)
     return [
         OrderResponse(
             id=o.id,
@@ -80,15 +69,6 @@ def list_orders(
         )
         for o in orders
     ]
-
-
-@router.get("/summary", response_model=OrderSummaryResponse, summary="Thong ke don hang")
-def get_order_summary(
-    request: Request,
-    order_service: OrderService = Depends(get_order_service),
-):
-    """Tong hop so don hang va tong chi tieu cua nguoi dung."""
-    return OrderSummaryResponse(**order_service.get_user_order_summary(request.state.user.id))
 
 
 @router.get("/{order_id}", response_model=OrderResponse, summary="Chi tiet don hang")

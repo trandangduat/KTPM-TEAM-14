@@ -27,18 +27,6 @@ class Product:
     status: str
     created_at: datetime
 
-    def sale_state(self, at: datetime | None = None) -> str:
-        current_time = at or datetime.utcnow()
-        if self.status != "ACTIVE":
-            return "INACTIVE"
-        if self.start_time and current_time < self.start_time:
-            return "UPCOMING"
-        if self.end_time and current_time >= self.end_time:
-            return "ENDED"
-        if self.stock <= 0:
-            return "SOLD_OUT"
-        return "AVAILABLE"
-
 
 @dataclass
 class Order:
