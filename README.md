@@ -11,8 +11,8 @@ Hệ thống phục vụ các chiến dịch bán hàng Flash Sale. Điểm khó
 
 Nghiệp vụ cơ bản:
 
-- Khách hàng (kể cả chưa đăng nhập) có thể duyệt danh sách các mặt hàng đang mở bán và số lượng tồn kho khả dụng còn lại.
-- Khách hàng đã đăng nhập chọn sản phẩm và số lượng muốn mua. Hệ thống kiểm tra số lượng tồn kho trong CSDL:
+- Khách hàng có thể duyệt danh sách các mặt hàng đang mở bán và số lượng tồn kho của từng mặt hàng.
+- Khách hàng chọn sản phẩm và số lượng muốn mua. Hệ thống kiểm tra số lượng tồn kho trong CSDL:
   - Nếu vẫn còn đủ số hàng: Trừ số lượng tương ứng và tạo bản ghi đơn hàng mới.
   - Nếu hết hàng: Từ chối yêu cầu và trả về lỗi.
 - Khách hàng có thể hủy đơn hàng của mình. Khi đơn hàng bị hủy, số lượng tương ứng sẽ được hoàn lại vào kho hàng.
@@ -41,14 +41,14 @@ flowchart LR
 
 Framework: FastAPI
 
-| Thư viện                         | Vai trò                                       |
-| :------------------------------- | :-------------------------------------------- |
-| Uvicorn                          | Chạy ứng dụng FastAPI.                        |
-| Pydantic                         | Định nghĩa schema.                            |
-| SQLAlchemy                       | Ánh xạ bảng, truy vấn và quản lý transaction. |
-| Psycopg                          | Kết nối PostgreSQL.                           |
-| Python JOSE                      | Tạo và xác minh JWT.                          |
-| Passlib và bcrypt                | Băm và kiểm tra mật khẩu.                     |
+| Thư viện          | Vai trò                                       |
+| :---------------- | :-------------------------------------------- |
+| Uvicorn           | Chạy ứng dụng FastAPI.                        |
+| Pydantic          | Định nghĩa schema.                            |
+| SQLAlchemy        | Ánh xạ bảng, truy vấn và quản lý transaction. |
+| Psycopg           | Kết nối PostgreSQL.                           |
+| Python JOSE       | Tạo và xác minh JWT.                          |
+| Passlib và bcrypt | Băm và kiểm tra mật khẩu.                     |
 
 ```text
 app/
@@ -104,7 +104,7 @@ app/
 
 ## 4. Hướng dẫn chạy dự án
 
-### Cách 1: Sử dụng Docker Compose (Khuyên dùng)
+### Cách 1: Sử dụng Docker Compose
 
 Yêu cầu: Đã cài đặt Docker và Docker Compose.
 
@@ -114,10 +114,10 @@ Yêu cầu: Đã cài đặt Docker và Docker Compose.
 docker compose up --build
 ```
 
-2. Truy cập tài liệu API (Swagger UI):
+2. Truy cập tài liệu API:
 
 - Đường dẫn: `http://localhost:8000/docs`
-- Tài khoản thử nghiệm đã được tạo sẵn:
+- Tài khoản thử nghiệm:
   - Quản trị viên: `admin` / `admin123`
   - Khách hàng: `customer1` / `password123`
 
@@ -151,9 +151,14 @@ uvicorn app.main:app --reload
 
 ### 5.1. Tổng quan môi trường kiểm thử
 
-- Cấu hình: 4 CPU logic, RAM 31,3 GiB.
-- Kiểm thử trên endpoint `POST /api/v1/orders`.
-- Chỉ số đánh giá: Số request thành công, số request lỗi, tồn kho và thời gian phản hồi p95.
+- Cấu hình: Kaggle CPU, Accelerator: None, Internet on.
+- Kiểm thử trên endpoint `POST /api/v1/orders`, timeout mỗi request 60 giây.
+- Mỗi mức tải được chạy 3 lần độc lập; bảng kết quả ghi khoảng giá trị nhỏ nhất, lớn nhất của 3 lần.
+- Chỉ số đánh giá:
+  - HTTP 201: số request tạo đơn thành công; HTTP 500: số request server trả lỗi nội bộ.
+  - Timeout: số request không nhận được phản hồi sau 60 giây.
+  - Tồn kho thực tế: số lượng tồn kho còn lại của sản phẩm sau khi chạy; Đơn trong DB: số đơn hàng thực tế được ghi nhận trogn DB.
+  - p95: thời gian phản hồi mà 95% request nhanh hơn hoặc bằng, tính cả request timeout.
 
 ### 5.2. Kịch bản thứ 1
 
@@ -163,36 +168,33 @@ Kịch bản kiểm thử:
 - Gửi đồng thời 20 request đặt mua sản phẩm.
 - Kiểm tra số đơn hàng được tạo và số lượng tồn kho còn lại.
 
-Kết quả:
+| Request đồng thời | Đơn trong DB | Tồn kho mong đợi | Tồn kho thực tế |
+| ----------------: | -----------: | ---------------: | --------------: |
+|                20 |           20 |               80 |         95 – 96 |
 
-| Request đồng thời | Đơn tạo thành công | Tồn kho mong đợi | Tồn kho thực tế | Số lượng trừ thiếu |
-| ---: | ---: | ---: | ---: | ---: |
-| 20 | 20 | 80 | 97 | 17 |
-
- Hệ thống chưa đảm bảo tính nhất quán của dữ liệu tồn kho khi xử lý các request đặt hàng đồng thời.
+Hệ thống chưa đảm bảo tính nhất quán của dữ liệu tồn kho khi xử lý các request đặt hàng đồng thời.
 
 ### 5.3. Kịch bản thứ 2
 
 Kịch bản kiểm thử:
 
 - Khởi tạo một sản phẩm có số lượng tồn kho là 10000 cho mỗi mức tải.
-- Gửi tổng cộng 1000 request đặt mua sản phẩm, lần lượt với 10, 50, 100 và 200 client đồng thời. 
+- Gửi tổng cộng 1000 request đặt mua sản phẩm, lần lượt với 10, 50, 100 và 200 client.
 - Kiểm tra kết quả xử lý, thời gian phản hồi và số lượng tồn kho còn lại. Nếu tạo đủ 1000 đơn thì số lượng hàng tồn kho phải còn 9000.
 
-Kết quả:
+| Client đồng thời | HTTP 201 | HTTP 500 |   Timeout | Đơn trong DB | Tồn kho mong đợi | Tồn kho thực tế |      p95 (ms) |
+| ---------------: | -------: | -------: | --------: | -----------: | ---------------: | --------------: | ------------: |
+|               10 |     1000 |        0 |         0 |         1000 |             9000 |     9538 – 9559 |     128 – 162 |
+|               50 |     1000 |        0 |         0 |         1000 |             9000 |     9776 – 9793 |     751 – 871 |
+|              100 |  10 – 18 | 86 – 102 | 865 – 881 |    271 – 287 |      9713 – 9729 |     9903 – 9913 | 60121 – 60139 |
+|              200 |        0 |       40 | 950 – 955 |          --- |              --- |             --- | 60225 – 60347 |
 
-| Client đồng thời | HTTP mã 201 | HTTP mã 401 | Timeout | Tồn kho thực tế | p95 (ms) |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 10 | 1000 | 0 | 0 | 9548 | 125 |
-| 50 | 1000 | 0 | 0 | 9852 | 705 |
-| 100 | 960 | 40 | 0 | 9787 | 30622 |
-| 200 | 0 | 40 | 960 | --- | 60336 |
+Tồn kho mong đợi = 10000 − số đơn hàng thực tế được lưu.
 
 Nhận xét:
 
-- Ở các mức 10 và 50 client, cả 1000 request đều tạo đơn thành công nhưng số lượng tồn kho vẫn bị tính sai.
-- Ở mức 100 client xuất hiện 40 request trả HTTP 401, lý do có thể nằm ở việc code xử lý Exception khi database bị nghẽn.
-- Khi tăng từ 10 lên 100 client, thời gian phản hồi p95 tăng từ khoảng 125ms lên hơn 30 giây.
-- Ở mức 200 client, 960 request bị timeout.
+- Ở mức 10 và 50 client, tất cả request đều thành công nhưng tồn kho vẫn bị trừ thiếu ở cả 3 lần chạy.
+- Ở mức 100 client, phần lớn request bị lỗi hoặc timeout, p95 vượt 60 giây.
+- Ở mức 200 client, không request nào thành công.
 
-Khi số lượng request đặt hàng đồng thời tăng cao, hệ thống phản hồi chậm và khả năng xử lý chưa ổn định.
+Khi số lượng request đặt hàng đồng thời tăng cao, hệ thống phản hồi chậm, khả năng xử lý chưa ổn định và dữ liệu tồn kho không còn chính xác.
