@@ -21,20 +21,47 @@ Nghiệp vụ cơ bản:
 
 ### 2.1. Kiến trúc phân tầng
 
-Hệ thống được tổ chức thành ba lớp: Presentation Layer, Business Layer và Persistence Layer:
-
 ```mermaid
-flowchart LR
-    Client(["Client"]) --> Presentation["Presentation Layer"]
-    Presentation --> Business["Business Layer"]
-    Business --> Persistence["Persistence Layer"]
-    Persistence --> DB[("PostgreSQL")]
+flowchart TB
+    Client(["Client"])
+
+    subgraph Presentation["Presentation Layer"]
+        AuthAPI["Auth API"]
+        ProductAPI["Product API"]
+        OrderAPI["Order API"]
+    end
+
+    subgraph Business["Business Layer"]
+        AuthService["Auth Service"]
+        ProductService["Product Service"]
+        OrderService["Order Service"]
+    end
+
+    subgraph Persistence["Persistence Layer"]
+        UserRepo["User Repository"]
+        ProductRepo["Product Repository"]
+        OrderRepo["Order Repository"]
+    end
+
+    DB[("PostgreSQL")]
+
+    Client --> AuthAPI
+    Client --> ProductAPI
+    Client --> OrderAPI
+    AuthAPI --> AuthService
+    ProductAPI --> ProductService
+    OrderAPI --> OrderService
+    AuthService --> UserRepo
+    ProductService --> ProductRepo
+    OrderService --> ProductRepo
+    OrderService --> OrderRepo
+    UserRepo --> DB
+    ProductRepo --> DB
+    OrderRepo --> DB
 ```
 
-- Presentation Layer: Tiếp nhận request từ client, kiểm tra xác thực/phân quyền và trả về kết quả.
-
+- Presentation Layer: nhận yêu cầu về tài khoản, sản phẩm và đơn hàng; kiểm tra đầu vào, xác thực/phân quyền và trả phản hồi.
 - Business Layer: Xử lý logic nghiệp vụ như kiểm tra tồn kho, tính tổng tiền và hoàn kho khi hủy đơn.
-
 - Persistence Layer: Chịu trách nhiệm quản lý và tương tác với cơ sở dữ liệu PostgreSQL.
 
 ### 2.2. Tổ chức mã nguồn
