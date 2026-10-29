@@ -1,8 +1,14 @@
+from decimal import Decimal
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.dependencies import get_product_service, require_admin
-from app.api.schemas import ProductCreateRequest, ProductResponse
+from app.api.schemas import (
+    ProductCreateRequest,
+    ProductResponse,
+    ProductStockAdjustmentRequest,
+    ProductUpdateRequest,
+)
 from app.domain.exceptions import ConflictException, NotFoundException, ValidationException
 from app.services.product_service import ProductService
 
@@ -18,9 +24,25 @@ admin_router = APIRouter(
 
 
 @router.get("", response_model=list[ProductResponse], summary="Danh sach san pham Flash Sale")
-def list_products(product_service: ProductService = Depends(get_product_service)):
+def list_products(
+    keyword: str | None = Query(default=None, max_length=100),
+    min_price: Decimal | None = Query(default=None, ge=0),
+    max_price: Decimal | None = Query(default=None, ge=0),
+    in_stock_only: bool = Query(default=False),
+    sale_state: str | None = Query(default=None),
+    product_service: ProductService = Depends(get_product_service),
+):
     """Xem danh sach cac san pham dang mo ban flash sale."""
-    products = product_service.list_flash_sale_products()
+    try:
+        products = product_service.list_flash_sale_products(
+            keyword=keyword,
+            min_price=min_price,
+            max_price=max_price,
+            in_stock_only=in_stock_only,
+            sale_state=sale_state,
+        )
+    except ValidationException as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     return [
         ProductResponse(
             id=p.id,
@@ -32,6 +54,7 @@ def list_products(product_service: ProductService = Depends(get_product_service)
             start_time=p.start_time,
             end_time=p.end_time,
             status=p.status,
+            sale_state=p.sale_state(),
             created_at=p.created_at,
         )
         for p in products
@@ -53,6 +76,7 @@ def get_product(product_id: UUID, product_service: ProductService = Depends(get_
             start_time=p.start_time,
             end_time=p.end_time,
             status=p.status,
+            sale_state=p.sale_state(),
             created_at=p.created_at,
         )
     except NotFoundException as exc:
@@ -85,6 +109,7 @@ def create_product(
             start_time=p.start_time,
             end_time=p.end_time,
             status=p.status,
+            sale_state=p.sale_state(),
             created_at=p.created_at,
         )
     except ValidationException as exc:
@@ -104,3 +129,66 @@ def delete_product(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except ConflictException as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+
+@admin_router.patch("/{product_id}", response_model=ProductResponse, summary="Cap nhat san pham Flash Sale")
+def update_product(
+    product_id: UUID,
+    payload: ProductUpdateRequest,
+    product_service: ProductService = Depends(get_product_service),
+):
+    """Admin cap nhat mot phan thong tin san pham flash sale."""
+    try:
+        product = product_service.update_flash_sale_product(
+            product_id,
+            payload.model_dump(exclude_unset=True),
+        )
+        return ProductResponse(
+            id=product.id,
+            name=product.name,
+            description=product.description,
+            original_price=product.original_price,
+            flash_sale_price=product.flash_sale_price,
+            stock=product.stock,
+            start_time=product.start_time,
+            end_time=product.end_time,
+            status=product.status,
+            sale_state=product.sale_state(),
+            created_at=product.created_at,
+        )
+    except NotFoundException as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except ValidationException as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@admin_router.post(
+    "/{product_id}/stock-adjustments",
+    response_model=ProductResponse,
+    summary="Dieu chinh ton kho san pham",
+)
+def adjust_product_stock(
+    product_id: UUID,
+    payload: ProductStockAdjustmentRequest,
+    product_service: ProductService = Depends(get_product_service),
+):
+    """Admin nhap them hoac xuat bot ton kho bang mot gia tri chenh lech."""
+    try:
+        product = product_service.adjust_product_stock(product_id, payload.adjustment)
+        return ProductResponse(
+            id=product.id,
+            name=product.name,
+            description=product.description,
+            original_price=product.original_price,
+            flash_sale_price=product.flash_sale_price,
+            stock=product.stock,
+            start_time=product.start_time,
+            end_time=product.end_time,
+            status=product.status,
+            sale_state=product.sale_state(),
+            created_at=product.created_at,
+        )
+    except NotFoundException as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except ValidationException as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
