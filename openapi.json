@@ -36,11 +36,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Request validation error (path, query, or body).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid username or password.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
                 }
               }
             }
@@ -54,14 +64,26 @@
           "Auth"
         ],
         "summary": "Dang xuat",
-        "description": "Dang xuat khoi he thong.",
+        "description": "Dang xuat khoi he thong.\n\nRequires a valid bearer token. The endpoint returns a message and does not revoke the stateless JWT.",
         "operationId": "logout_api_v1_auth_logout_post",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
               }
             }
           }
@@ -79,7 +101,7 @@
           "Users"
         ],
         "summary": "Xem thong tin ca nhan",
-        "description": "Xem thong tin chi tiet cua tai khoan dang dang nhap.",
+        "description": "Xem thong tin chi tiet cua tai khoan dang dang nhap.\n\nRequires a valid bearer token and returns the authenticated user profile.",
         "operationId": "get_current_user_info_api_v1_users_me_get",
         "responses": {
           "200": {
@@ -88,6 +110,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
                 }
               }
             }
@@ -106,19 +138,136 @@
           "Flash Sale"
         ],
         "summary": "Danh sach san pham Flash Sale",
-        "description": "Xem danh sach cac san pham dang mo ban flash sale.",
+        "description": "Xem danh sach cac san pham dang mo ban flash sale.\n\nPublic endpoint. Only ACTIVE products are loaded before applying filters.",
         "operationId": "list_products_api_v1_products_get",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Keyword"
+            },
+            "description": "Optional case-insensitive substring in product name or description; maximum 100 characters."
+          },
+          {
+            "name": "min_price",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Price"
+            },
+            "description": "Inclusive filter on flash_sale_price; value must be non-negative and minimum cannot exceed maximum."
+          },
+          {
+            "name": "max_price",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Price"
+            },
+            "description": "Inclusive filter on flash_sale_price; value must be non-negative and minimum cannot exceed maximum."
+          },
+          {
+            "name": "in_stock_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "In Stock Only"
+            },
+            "description": "When true, return only products with stock greater than zero."
+          },
+          {
+            "name": "sale_state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "UPCOMING",
+                    "AVAILABLE",
+                    "SOLD_OUT",
+                    "ENDED",
+                    "INACTIVE"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sale State"
+            },
+            "description": "Derived state filter. The repository lists ACTIVE products only, so INACTIVE returns no products."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/ProductResponse"
                   },
-                  "type": "array",
                   "title": "Response List Products Api V1 Products Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation error (path, query, or body).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid price range or sale_state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
                 }
               }
             }
@@ -130,17 +279,22 @@
           "Flash Sale"
         ],
         "summary": "Them san pham Flash Sale",
-        "description": "Admin them moi mot san pham vao danh sach flash sale.",
+        "description": "Admin them moi mot san pham vao danh sach flash sale.\n\nRequires a valid bearer token and role ADMIN.",
         "operationId": "create_product_api_v1_products_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ProductCreateRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -154,7 +308,7 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Request validation error (path, query, or body).",
             "content": {
               "application/json": {
                 "schema": {
@@ -162,13 +316,38 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Product business validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ADMIN role required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/products/{product_id}": {
@@ -203,11 +382,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Request validation error (path, query, or body).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
                 }
               }
             }
@@ -219,7 +408,7 @@
           "Flash Sale"
         ],
         "summary": "Xoa san pham Flash Sale",
-        "description": "Admin xoa mot san pham khoi danh sach flash sale.",
+        "description": "Admin xoa mot san pham khoi danh sach flash sale.\n\nRequires a valid bearer token and role ADMIN. Deletion fails when an order references the product.",
         "operationId": "delete_product_api_v1_products__product_id__delete",
         "security": [
           {
@@ -243,11 +432,247 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Request validation error (path, query, or body).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ADMIN role required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Product is referenced by an order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Flash Sale"
+        ],
+        "summary": "Cap nhat san pham Flash Sale",
+        "description": "Admin cap nhat mot phan thong tin san pham flash sale.\n\nRequires a valid bearer token and role ADMIN. Stock cannot be changed through this operation.",
+        "operationId": "update_product_api_v1_products__product_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Product Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation error (path, query, or body).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Product business validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ADMIN role required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/products/{product_id}/stock-adjustments": {
+      "post": {
+        "tags": [
+          "Flash Sale"
+        ],
+        "summary": "Dieu chinh ton kho san pham",
+        "description": "Admin nhap them hoac xuat bot ton kho bang mot gia tri chenh lech.\n\nRequires a valid bearer token and role ADMIN. Resulting stock is limited to 0–1,000,000.",
+        "operationId": "adjust_product_stock_api_v1_products__product_id__stock_adjustments_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Product Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductStockAdjustmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation error (path, query, or body).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid stock adjustment or resulting stock outside allowed range.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ADMIN role required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
                 }
               }
             }
@@ -256,51 +681,27 @@
       }
     },
     "/api/v1/orders": {
-      "get": {
-        "tags": [
-          "Orders"
-        ],
-        "summary": "Danh sach don hang",
-        "description": "Xem danh sach don hang cua nguoi dung dang dang nhap.",
-        "operationId": "list_orders_api_v1_orders_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/OrderResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Orders Api V1 Orders Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      },
       "post": {
         "tags": [
           "Orders"
         ],
         "summary": "Dat mua san pham Flash Sale",
-        "description": "Khach hang dat mua san pham flash sale.",
+        "description": "Khach hang dat mua san pham flash sale.\n\nRequires a valid bearer token. The authenticated user is the order owner. Stock reservation and order creation commit separately.",
         "operationId": "create_order_api_v1_orders_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OrderCreateRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -314,11 +715,172 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Request validation error (path, query, or body).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid order, product unavailable, or insufficient stock.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Danh sach don hang",
+        "description": "Xem danh sach don hang cua nguoi dung dang dang nhap.\n\nRequires a valid bearer token. Returns only the authenticated user’s orders, ordered newest first.",
+        "operationId": "list_orders_api_v1_orders_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "PENDING",
+                    "CONFIRMED",
+                    "COMPLETED",
+                    "CANCELLED"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            },
+            "description": "Optional case-insensitive order status filter."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Number of user orders to skip; must be non-negative."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Maximum results; must be between 1 and 100."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderResponse"
+                  },
+                  "title": "Response List Orders Api V1 Orders Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation error (path, query, or body).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid status filter or pagination values.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orders/summary": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Thong ke don hang",
+        "description": "Tong hop so don hang va tong chi tieu cua nguoi dung.\n\nRequires a valid bearer token. Statistics are scoped to the authenticated user; total_spent includes every non-CANCELLED order, including PENDING.",
+        "operationId": "get_order_summary_api_v1_orders_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderSummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
                 }
               }
             }
@@ -337,7 +899,7 @@
           "Orders"
         ],
         "summary": "Chi tiet don hang",
-        "description": "Xem chi tiet mot don hang cu the.",
+        "description": "Xem chi tiet mot don hang cu the.\n\nRequires a valid bearer token; only the order owner can read it.",
         "operationId": "get_order_api_v1_orders__order_id__get",
         "security": [
           {
@@ -368,11 +930,41 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Request validation error (path, query, or body).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Order belongs to another user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Order not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
                 }
               }
             }
@@ -386,7 +978,7 @@
           "Orders"
         ],
         "summary": "Huy don hang",
-        "description": "Huy don hang va hoan lai so luong vao ton kho.",
+        "description": "Huy don hang va hoan lai so luong vao ton kho.\n\nRequires a valid bearer token; only the order owner can cancel a PENDING order. CANCELLED is committed before stock is restored.",
         "operationId": "cancel_order_api_v1_orders__order_id__cancel_post",
         "security": [
           {
@@ -417,11 +1009,51 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Request validation error (path, query, or body).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Order is not PENDING, competing transition occurred, or stock restoration failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Order belongs to another user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Order or associated product not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPError"
                 }
               }
             }
@@ -435,14 +1067,16 @@
           "System"
         ],
         "summary": "Kiem tra trang thai he thong",
-        "description": "Kiem tra tinh trang ket noi cua backend va co so du lieu.",
+        "description": "Kiem tra tinh trang ket noi cua backend va co so du lieu.\n\nPublic. The response status field is always healthy; database reports connected or disconnected.",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
               }
             }
           }
@@ -493,7 +1127,9 @@
           "quantity": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
-            "title": "Quantity"
+            "title": "Quantity",
+            "maximum": 20,
+            "description": "Positive integer; maximum 20 items per order."
           }
         },
         "type": "object",
@@ -534,7 +1170,13 @@
           },
           "status": {
             "type": "string",
-            "title": "Status"
+            "title": "Status",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "COMPLETED",
+              "CANCELLED"
+            ]
           },
           "created_at": {
             "type": "string",
@@ -555,10 +1197,45 @@
         ],
         "title": "OrderResponse"
       },
+      "OrderSummaryResponse": {
+        "properties": {
+          "total_orders": {
+            "type": "integer",
+            "title": "Total Orders"
+          },
+          "pending_orders": {
+            "type": "integer",
+            "title": "Pending Orders"
+          },
+          "completed_orders": {
+            "type": "integer",
+            "title": "Completed Orders"
+          },
+          "cancelled_orders": {
+            "type": "integer",
+            "title": "Cancelled Orders"
+          },
+          "total_spent": {
+            "type": "string",
+            "title": "Total Spent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_orders",
+          "pending_orders",
+          "completed_orders",
+          "cancelled_orders",
+          "total_spent"
+        ],
+        "title": "OrderSummaryResponse"
+      },
       "ProductCreateRequest": {
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
             "title": "Name"
           },
           "description": {
@@ -582,7 +1259,8 @@
                 "type": "string"
               }
             ],
-            "title": "Original Price"
+            "title": "Original Price",
+            "description": "Positive decimal; maximum 9999999999.99 and at most two decimal places."
           },
           "flash_sale_price": {
             "anyOf": [
@@ -594,7 +1272,8 @@
                 "type": "string"
               }
             ],
-            "title": "Flash Sale Price"
+            "title": "Flash Sale Price",
+            "description": "Positive decimal; maximum 9999999999.99 and at most two decimal places; lower than original_price."
           },
           "stock": {
             "type": "integer",
@@ -633,7 +1312,8 @@
           "flash_sale_price",
           "stock"
         ],
-        "title": "ProductCreateRequest"
+        "title": "ProductCreateRequest",
+        "description": "Business validation: normalized name is 1–200 characters; prices are positive, have at most two decimal places and at most 12 total digits; flash_sale_price must be lower than original_price; when both sale times are set, end_time must be later than start_time. New products start ACTIVE."
       },
       "ProductResponse": {
         "properties": {
@@ -695,7 +1375,22 @@
           },
           "status": {
             "type": "string",
-            "title": "Status"
+            "title": "Status",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "sale_state": {
+            "type": "string",
+            "title": "Sale State",
+            "enum": [
+              "INACTIVE",
+              "UPCOMING",
+              "ENDED",
+              "SOLD_OUT",
+              "AVAILABLE"
+            ]
           },
           "created_at": {
             "type": "string",
@@ -711,9 +1406,131 @@
           "flash_sale_price",
           "stock",
           "status",
+          "sale_state",
           "created_at"
         ],
         "title": "ProductResponse"
+      },
+      "ProductStockAdjustmentRequest": {
+        "properties": {
+          "adjustment": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": -1000000.0,
+            "title": "Adjustment",
+            "not": {
+              "const": 0
+            }
+          }
+        },
+        "type": "object",
+        "required": [
+          "adjustment"
+        ],
+        "title": "ProductStockAdjustmentRequest",
+        "description": "Signed stock delta; zero is invalid."
+      },
+      "ProductUpdateRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "original_price": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Price",
+            "description": "When supplied, positive decimal; maximum 9999999999.99 and at most two decimal places."
+          },
+          "flash_sale_price": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flash Sale Price",
+            "description": "When supplied, positive decimal; maximum 9999999999.99 and at most two decimal places."
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ACTIVE",
+                  "INACTIVE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "title": "ProductUpdateRequest",
+        "description": "Partial update; provide at least one field. Stock is excluded and must be changed through the stock-adjustments endpoint. Resulting prices and sale times must satisfy the same product rules as creation."
       },
       "TokenResponse": {
         "properties": {
@@ -813,6 +1630,52 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "HTTPError": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "HTTPError"
+      },
+      "LogoutResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "LogoutResponse"
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "healthy"
+          },
+          "database": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "disconnected"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "database"
+        ],
+        "title": "HealthResponse"
       }
     },
     "securitySchemes": {
