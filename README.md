@@ -1,88 +1,58 @@
 # Hệ thống Đặt hàng Flash Sale - Pha 1
-# Hệ thống Đặt hàng Flash Sale
 
 ## 1. Mô tả bài toán và nghiệp vụ cơ bản
 
 Hệ thống phục vụ các chiến dịch bán hàng Flash Sale. Điểm khó khăn chính của bài toán là xử lý lượng truy cập đồng thời lớn khi nhiều khách hàng cùng tranh mua một số lượng hàng hóa có hạn, đòi hỏi tính nhất quán của dữ liệu tồn kho và thời gian phản hồi nhanh.
-Hệ thống cung cấp REST API cho các chiến dịch Flash Sale, gồm quản lý sản phẩm và lịch bán, đặt/hủy đơn hàng, kiểm soát tồn kho và xem thống kê đơn hàng. Bài toán cần duy trì tính đúng đắn của tồn kho khi nhiều khách hàng đồng thời đặt mua sản phẩm giới hạn.
 
-| Vai trò | Nghiệp vụ đã triển khai |
-| :-- | :-- |
-| Customer | Xem chi tiết và tìm kiếm/lọc danh sách sản phẩm; đặt hàng; xem, lọc, phân trang đơn hàng của chính mình; xem thống kê đơn hàng; hủy đơn đang `PENDING`. |
-| Admin | Tạo, cập nhật, xóa sản phẩm; thiết lập lịch và trạng thái Flash Sale; điều chỉnh tồn kho. |
-| Public | Đăng nhập và kiểm tra trạng thái backend/kết nối database. |
+| Role     | Nghiệp vụ                                                                                                             |
+| :------- | :-------------------------------------------------------------------------------------------------------------------- |
+| Customer | Xem danh sách và chi tiết các sản phẩm Flash Sale, đặt mua sản phẩm, xem lịch sử đơn hàng của bản thân, hủy đơn hàng. |
+| Admin    | Thêm/xóa sản phẩm trong danh sách Flash Sale                                                                          |
 
-### 1.1. Trạng thái Flash Sale
+Nghiệp vụ cơ bản:
 
-`Product.sale_state()` xác định trạng thái theo thứ tự sau:
+- Khách hàng có thể xem danh sách, chi tiết sản phẩm Flash Sale và lọc danh sách theo từ khóa, khoảng giá, tình trạng tồn kho hoặc trạng thái chương trình.
 
-1. `INACTIVE`: trạng thái sản phẩm khác `ACTIVE`.
-2. `UPCOMING`: có `start_time` và thời điểm hiện tại còn trước thời gian bắt đầu.
-3. `ENDED`: có `end_time` và thời điểm hiện tại đã đến hoặc vượt thời gian kết thúc.
-4. `SOLD_OUT`: tồn kho nhỏ hơn hoặc bằng 0.
-5. `AVAILABLE`: các trường hợp còn lại.
+- Sản phẩm có thời gian bắt đầu, thời gian kết thúc và trạng thái. Hệ thống xác định trạng thái mở bán dựa trên thời gian, trạng thái sản phẩm và số lượng tồn kho.
 
-Danh sách sản phẩm chỉ truy vấn sản phẩm `ACTIVE`. Do đó, dù bộ lọc `sale_state` chấp nhận `INACTIVE`, danh sách hiện không thể trả sản phẩm INACTIVE.
+- Admin có thể thêm, cập nhật thông tin và xóa sản phẩm. Việc điều chỉnh tồn kho được thực hiện qua chức năng riêng.
 
-### 1.2. Quản lý sản phẩm
+- Khách hàng chọn sản phẩm và số lượng muốn mua. Mỗi đơn hàng có tối đa 20 sản phẩm. Hệ thống kiểm tra trạng thái Flash Sale và tồn kho trước khi đặt hàng:
 
-- Admin tạo sản phẩm ở trạng thái ban đầu `ACTIVE`; có thể cập nhật tên, mô tả, giá, lịch và trạng thái một phần qua `PATCH /api/v1/products/{product_id}`.
-- Tồn kho được thay đổi riêng qua `POST /api/v1/products/{product_id}/stock-adjustments`; số điều chỉnh dương là nhập thêm, âm là xuất bớt. Không chấp nhận 0, không cho phép kết quả âm và endpoint điều chỉnh giới hạn tồn kho sau cập nhật ở mức 1.000.000. Giới hạn này không được kiểm tra khi tạo sản phẩm.
-- Tên sản phẩm được chuẩn hóa khoảng trắng, dài từ 1 đến 200 ký tự. Giá gốc và giá Flash Sale phải dương, tối đa hai chữ số thập phân; giá Flash Sale phải thấp hơn giá gốc.
-- Nếu cả `start_time` và `end_time` có giá trị, thời gian kết thúc phải sau thời gian bắt đầu.
-- Không thể xóa sản phẩm đang được đơn hàng tham chiếu; API trả `409 Conflict`.
+  - Nếu chương trình đang mở bán và còn đủ hàng: Hệ thống giữ số lượng tồn kho và tạo đơn hàng ở trạng thái `PENDING`.
 
-### 1.3. Đặt hàng và hủy đơn
+  - Nếu chương trình chưa bắt đầu, đã kết thúc, sản phẩm ngừng bán hoặc hết hàng: Từ chối yêu cầu và trả về lỗi.
 
-- Mỗi đơn nhận số lượng nguyên từ 1 đến tối đa 20 sản phẩm.
-- Khi đặt hàng, hệ thống kiểm tra sản phẩm tồn tại và còn `ACTIVE`, Flash Sale đã bắt đầu và chưa kết thúc, sản phẩm chưa hết hàng và tồn kho đủ số lượng.
-- Giữ kho dùng câu cập nhật có điều kiện tại database, chỉ trừ khi `stock >= quantity`. Nếu thao tác không cập nhật được dòng sản phẩm, yêu cầu bị từ chối do không đủ tồn kho.
-- Đơn mới có trạng thái `PENDING`. Giá đơn vị được lấy từ giá Flash Sale tại thời điểm đặt hàng; tổng tiền được tính từ giá này và số lượng.
-- **Giữ kho và ghi đơn commit riêng biệt, không phải một transaction nguyên tử.** Nếu ghi đơn thất bại, service gọi thao tác hoàn lại số lượng đã giữ như một bước bù trừ riêng.
-- Chỉ chủ đơn được hủy và chỉ đơn `PENDING` được hủy. Hệ thống chuyển trạng thái có điều kiện sang `CANCELLED` và commit trước, sau đó mới hoàn kho.
-- Nếu chuyển trạng thái không thành công do yêu cầu cạnh tranh, kho không được hoàn. Nếu hoàn kho thất bại sau khi trạng thái đã commit `CANCELLED`, API trả lỗi; service không tự hoàn lại lần nữa nhằm tránh cộng kho lặp khi client gửi lại yêu cầu.
+- Khách hàng có thể xem danh sách đơn hàng, lọc theo trạng thái, phân trang và xem thống kê đơn hàng của bản thân.
 
-### 1.4. Lọc, phân trang và thống kê đơn hàng
-
-- Danh sách sản phẩm hỗ trợ tìm không phân biệt hoa thường trong tên/mô tả (`keyword`), lọc khoảng giá Flash Sale (`min_price`, `max_price`), chỉ sản phẩm còn hàng (`in_stock_only`) và trạng thái Flash Sale (`sale_state`). Giá tối thiểu không được lớn hơn giá tối đa.
-- `GET /api/v1/orders` chỉ trả đơn của người dùng hiện tại, sắp xếp `created_at` giảm dần; hỗ trợ lọc `status` và phân trang bằng `offset`/`limit`. Trạng thái hợp lệ là `PENDING`, `CONFIRMED`, `COMPLETED`, `CANCELLED` (không phân biệt hoa thường); `offset >= 0`, `limit` từ 1 đến 100.
-- `GET /api/v1/orders/summary` trả tổng số đơn, số đơn `PENDING`, `COMPLETED`, `CANCELLED` và `total_spent`. `total_spent` cộng giá trị các đơn không `CANCELLED`, kể cả đơn `PENDING`; `total_orders` vẫn tính đơn đã hủy. Đây là tổng theo dữ liệu đơn, không phải tổng tiền đã thanh toán.
+- Khách hàng chỉ có thể hủy đơn hàng ở trạng thái `PENDING`. Khi hủy thành công, số lượng tương ứng được hoàn lại vào kho hàng.
 
 ## 2. Kiến trúc hệ thống
 
 ### 2.1. Kiến trúc phân tầng
 
-Hệ thống tổ chức theo luồng API → nghiệp vụ → truy cập dữ liệu:
-
 ```mermaid
 flowchart TB
-    Client([Client])
-    subgraph Presentation[Presentation Layer - FastAPI]
-        AuthAPI[Auth API]
-        ProductAPI[Product API]
-        OrderAPI[Order API]
-        Dependencies[Dependencies: protected routes and admin role check]
-        Schemas[Request and response schemas]
+    Client(["Client"])
+    subgraph Presentation["Presentation Layer"]
+        AuthAPI["Auth API"]
+        ProductAPI["Product API"]
+        OrderAPI["Order API"]
     end
-    subgraph Business[Business Layer]
-        AuthService[Auth Service]
-        ProductService[Product Service]
-        OrderService[Order Service]
-        Domain[Domain entities, repository interfaces, exceptions]
+    subgraph Business["Business Layer"]
+        AuthService["Auth Service"]
+        ProductService["Product Service"]
+        OrderService["Order Service"]
     end
-    subgraph Persistence[Persistence Layer - SQLAlchemy]
-        UserRepo[User Repository]
-        ProductRepo[Product Repository]
-        OrderRepo[Order Repository]
-        ORM[ORM models]
+    subgraph Persistence["Persistence Layer"]
+        UserRepo["User Repository"]
+        ProductRepo["Product Repository"]
+        OrderRepo["Order Repository"]
     end
-    DB[(PostgreSQL)]
+    DB[("PostgreSQL")]
     Client --> AuthAPI
     Client --> ProductAPI
     Client --> OrderAPI
-    AuthAPI -. protected routes .-> Dependencies
-    ProductAPI -. admin routes .-> Dependencies
-    OrderAPI --> Dependencies
     AuthAPI --> AuthService
     ProductAPI --> ProductService
     OrderAPI --> OrderService
@@ -90,171 +60,222 @@ flowchart TB
     ProductService --> ProductRepo
     OrderService --> ProductRepo
     OrderService --> OrderRepo
-    UserRepo --> ORM
-    ProductRepo --> ORM
-    OrderRepo --> ORM
-    ORM --> DB
+    UserRepo --> DB
+    ProductRepo --> DB
+    OrderRepo --> DB
 ```
 
-- **Presentation:** router FastAPI tiếp nhận request và trả response; schema Pydantic khai báo body/query/response; dependency cung cấp repository/service, xác thực JWT và kiểm tra role `ADMIN` ở router quản trị.
-- **Business:** service thực hiện quy tắc nghiệp vụ sản phẩm, đơn hàng, tồn kho và thống kê. Domain định nghĩa entity, repository interface và exception; layer này không import framework web hoặc thư viện DB.
-- **Persistence:** SQLAlchemy model ánh xạ bảng; repository triển khai interface, truy vấn PostgreSQL và thực hiện commit.
+- Presentation Layer: nhận yêu cầu về tài khoản, sản phẩm và đơn hàng; kiểm tra đầu vào, xác thực/phân quyền và trả phản hồi.
 
-**Luồng đặt hàng:** API lấy người dùng đã xác thực → `OrderService` kiểm tra số lượng, trạng thái Flash Sale và tồn kho → `ProductRepository.reserve_stock()` cập nhật kho có điều kiện rồi commit → `OrderRepository.create()` ghi đơn rồi commit. Nếu ghi đơn lỗi, service gọi `ProductRepository.release_stock()` để hoàn kho và commit riêng.
+- Business Layer: Xử lý logic nghiệp vụ như quản lý trạng thái Flash Sale, kiểm tra tồn kho, tính tổng tiền, lọc sản phẩm/đơn hàng và hoàn kho khi hủy đơn.
 
-**Luồng hủy:** API lấy người dùng đã xác thực → service kiểm tra đơn, quyền sở hữu, trạng thái `PENDING` và sản phẩm → `OrderRepository.transition_status()` đổi `PENDING` thành `CANCELLED` có điều kiện rồi commit → `ProductRepository.release_stock()` hoàn kho và commit. Việc đổi trạng thái và hoàn kho không nằm trong cùng transaction.
+- Persistence Layer: Chịu trách nhiệm quản lý và tương tác với cơ sở dữ liệu PostgreSQL.
 
-### 2.2. Cấu trúc mã nguồn
+### 2.2. Tổ chức mã nguồn
+
+Framework: FastAPI
+
+| Thư viện          | Vai trò                                       |
+| :---------------- | :-------------------------------------------- |
+| Uvicorn           | Chạy ứng dụng FastAPI.                        |
+| Pydantic          | Định nghĩa schema.                            |
+| SQLAlchemy        | Ánh xạ bảng, truy vấn và quản lý transaction. |
+| Psycopg           | Kết nối PostgreSQL.                           |
+| Python JOSE       | Tạo và xác minh JWT.                          |
+| Passlib và bcrypt | Băm và kiểm tra mật khẩu.                     |
 
 ```text
 app/
 ├── api/                        Presentation Layer
-│   ├── v1/                     Router auth, products, orders
-│   │   └── router.py           Tổng hợp router phiên bản 1
-│   ├── schemas.py              Request/response schemas
-│   └── dependencies.py         Dependency injection, authentication, authorization
-├── services/                   Business services
+│   ├── v1/
+│   │   ├── router.py           Tổng hợp các router
+│   │   ├── auth.py             Đăng nhập, đăng xuất và thông tin cá nhân
+│   │   ├── products.py         API sản phẩm
+│   │   └── orders.py           API đơn hàng
+│   ├── schemas.py              Schema request/response
+│   └── dependencies.py         Cung cấp dependency, xác thực và phân quyền
+├── services/                   Business Layer: xử lý nghiệp vụ
 │   ├── auth_service.py         Xác thực người dùng
-│   ├── product_service.py      Nghiệp vụ sản phẩm và tồn kho
-│   └── order_service.py        Nghiệp vụ đặt/hủy và thống kê đơn
-├── domain/                     Entity, repository interface, exception
-├── infrastructure/             SQLAlchemy models và repository
-├── core/                       Cấu hình, database session, mật khẩu/JWT
-└── main.py                     Khởi tạo FastAPI, router và health endpoint
+│   ├── product_service.py      Quản lý sản phẩm
+│   └── order_service.py        Đặt và hủy đơn hàng
+├── domain/                     Business Layer: các định nghĩa nghiệp vụ
+│   ├── models.py               Entity người dùng, sản phẩm và đơn hàng
+│   ├── repositories.py         Interface repository
+│   └── exceptions.py           Lỗi nghiệp vụ
+├── infrastructure/             Persistence Layer
+│   ├── models.py               ORM model
+│   └── repositories.py         Repository SQLAlchemy
+├── core/                       Các thành phần hỗ trợ
+│   ├── config.py               Cấu hình ứng dụng
+│   ├── database.py             Kết nối và session CSDL
+│   └── security.py             Mật khẩu và JWT
+└── main.py                     Khởi tạo ứng dụng và đăng ký router
 ```
 
-### 2.3. Công nghệ sử dụng
+## 3. Đặc tả các REST API
 
-| Công nghệ/thư viện | Vai trò |
-| :-- | :-- |
-| FastAPI | REST API và dependency injection. |
-| Uvicorn | ASGI server chạy ứng dụng. |
-| Pydantic | Validation và request/response schemas. |
-| SQLAlchemy | ORM, truy vấn và session database. |
-| Psycopg / psycopg2 | Driver kết nối PostgreSQL. |
-| Python JOSE | Tạo và xác minh JWT. |
-| Passlib / bcrypt | Băm và xác minh mật khẩu. |
-| PostgreSQL | Cơ sở dữ liệu quan hệ. |
+- Đặc tả OpenAPI: [openapi.json](openapi.json).
 
-## 3. Đặc tả REST API
+- Xem và thử API bằng Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs) sau khi khởi động hệ thống.
 
-- OpenAPI: [openapi.json](openapi.json).
-- Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs); ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc).
-- Base path của API phiên bản 1: `/api/v1`. Health endpoint là `/health` ở root.
-- Các route được bảo vệ cần header `Authorization: Bearer <access_token>`; đăng nhập, xem sản phẩm và health là public. Route quản trị sản phẩm yêu cầu role `ADMIN`. API đơn hàng yêu cầu user đã xác thực và chỉ truy cập đơn của user đó; source không kiểm tra riêng role `CUSTOMER`.
-- Lỗi thường gặp: `400` cho quy tắc nghiệp vụ/filter không hợp lệ; `401` cho token thiếu/không hợp lệ hoặc đăng nhập thất bại; `403` cho sai role/quyền sở hữu; `404` khi không tìm thấy tài nguyên; `409` khi xóa sản phẩm đã có đơn tham chiếu; `422` cho validation path/query/body của FastAPI.
+- Base URL: `/api/v1`
 
-| Nhóm | Method | Đường dẫn | Query parameters | Quyền truy cập | Mô tả |
-| :-- | :-- | :-- | :-- | :-- | :-- |
-| Auth | `POST` | `/api/v1/auth/login` | — | Public | Đăng nhập và nhận access token. |
-| Auth | `POST` | `/api/v1/auth/logout` | — | Auth | Trả thông báo đăng xuất; JWT stateless không bị thu hồi bởi endpoint này. |
-| Users | `GET` | `/api/v1/users/me` | — | Auth | Xem hồ sơ người dùng đang đăng nhập. |
-| Flash Sale | `GET` | `/api/v1/products` | `keyword`, `min_price`, `max_price`, `in_stock_only`, `sale_state` | Public | Tìm kiếm và lọc danh sách sản phẩm ACTIVE. |
-| Flash Sale | `GET` | `/api/v1/products/{product_id}` | — | Public | Xem chi tiết sản phẩm và tồn kho. |
-| Flash Sale | `POST` | `/api/v1/products` | — | Admin | Tạo sản phẩm Flash Sale. |
-| Flash Sale | `PATCH` | `/api/v1/products/{product_id}` | — | Admin | Cập nhật một phần thông tin, không gồm tồn kho. |
-| Flash Sale | `POST` | `/api/v1/products/{product_id}/stock-adjustments` | — | Admin | Tăng hoặc giảm tồn kho. |
-| Flash Sale | `DELETE` | `/api/v1/products/{product_id}` | — | Admin | Xóa sản phẩm nếu không bị đơn hàng tham chiếu. |
-| Orders | `POST` | `/api/v1/orders` | — | Authenticated user | Đặt hàng và tạo đơn `PENDING`. |
-| Orders | `GET` | `/api/v1/orders` | `status`, `offset`, `limit` | Authenticated user | Danh sách đơn của người dùng; mới nhất trước, có lọc/phân trang. |
-| Orders | `GET` | `/api/v1/orders/summary` | — | Authenticated user | Thống kê đơn và tổng giá trị đơn không bị hủy của người dùng. |
-| Orders | `GET` | `/api/v1/orders/{order_id}` | — | Authenticated user | Xem chi tiết đơn của chính người dùng. |
-| Orders | `POST` | `/api/v1/orders/{order_id}/cancel` | — | Authenticated user | Hủy đơn `PENDING` của chính mình và hoàn kho. |
-| System | `GET` | `/health` | — | Public | Trả `status` luôn là `healthy`; `database` cho biết `connected` hoặc `disconnected`. |
+- Xác thực: Gửi kèm header `Authorization: Bearer <access_token>` đối với các route yêu cầu xác thực.
 
-`sale_state` nhận `UPCOMING`, `AVAILABLE`, `SOLD_OUT`, `ENDED`, `INACTIVE`; `status` lọc đơn nhận `PENDING`, `CONFIRMED`, `COMPLETED`, `CANCELLED`. Chi tiết request, response, validation và status code từng operation được mô tả trong OpenAPI. Source hiện không cung cấp API xác nhận hoặc hoàn thành đơn.
+### Bảng tổng hợp các endpoint
 
-## 4. Hướng dẫn cài đặt và chạy
+| Nhóm           | Method   | Đường dẫn                              | Quyền hạn    | Mô tả chức năng                                               |
+| :------------- | :------- | :------------------------------------- | :----------- | :------------------------------------------------------------ |
+| **Auth**       | `POST`   | `/auth/login`                          | Public       | Đăng nhập                                                     |
+|                | `POST`   | `/auth/logout`                         | Auth         | Đăng xuất                                                     |
+|                | `GET`    | `/users/me`                            | Auth         | Xem thông tin chi tiết của tài khoản                          |
+| **Flash Sale** | `GET`    | `/products`                            | Public       | Xem và lọc danh sách sản phẩm Flash Sale                      |
+|                | `GET`    | `/products/{id}`                       | Public       | Xem thông tin chi tiết và số lượng tồn kho của 1 sản phẩm     |
+|                | `POST`   | `/products`                            | Admin        | Thêm mới một sản phẩm vào danh sách Flash Sale                |
+|                | `PATCH`  | `/products/{product_id}`               | Admin        | Cập nhật thông tin sản phẩm                                   |
+|                | `POST`   | `/products/{product_id}/stock-adjustments` | Admin    | Điều chỉnh số lượng tồn kho                                   |
+|                | `DELETE` | `/products/{id}`                       | Admin        | Xóa một sản phẩm khỏi danh sách Flash Sale                    |
+| **Orders**     | `POST`   | `/orders`                              | Customer     | Đặt mua sản phẩm Flash Sale                                   |
+|                | `GET`    | `/orders`                              | Customer     | Xem, lọc và phân trang danh sách đơn hàng của người dùng hiện tại |
+|                | `GET`    | `/orders/summary`                      | Customer     | Xem thống kê đơn hàng của người dùng hiện tại                 |
+|                | `GET`    | `/orders/{id}`                         | Customer     | Xem chi tiết thông tin một đơn hàng                           |
+|                | `POST`   | `/orders/{id}/cancel`                  | Customer     | Hủy đơn hàng                                                  |
+| **Hệ thống**   | `GET`    | `/health`                              | Public       | Kiểm tra trạng thái hoạt động của Backend và kết nối Database |
 
-### 4.1. Docker Compose
+### Các tham số lọc và phân trang
 
-Yêu cầu đã cài Docker và Docker Compose. Compose chạy PostgreSQL 16, chờ healthcheck DB thành công, sau đó backend chạy seed và khởi chạy Uvicorn.
+- `GET /products` hỗ trợ các tham số `keyword`, `min_price`, `max_price`, `in_stock_only` và `sale_state`. `keyword` tìm không phân biệt chữ hoa/thường trong tên và mô tả; khoảng giá áp dụng trên giá Flash Sale. `sale_state` nhận một trong các giá trị `UPCOMING`, `AVAILABLE`, `SOLD_OUT`, `ENDED`, `INACTIVE`. Danh sách hiện chỉ truy vấn sản phẩm `ACTIVE`, nên bộ lọc `INACTIVE` không trả về sản phẩm.
+- `GET /orders` hỗ trợ `status`, `offset` và `limit`. `status` nhận `PENDING`, `CONFIRMED`, `COMPLETED` hoặc `CANCELLED`; `offset` mặc định là 0 và không âm; `limit` mặc định là 20, từ 1 đến 100. Kết quả được sắp xếp theo thời gian tạo mới nhất trước.
+- Người dùng chỉ xem được đơn hàng của chính mình. Các endpoint quản lý sản phẩm yêu cầu quyền Admin.
+- `GET /orders/summary` trả về `total_orders`, `pending_orders`, `completed_orders`, `cancelled_orders` và `total_spent`. `total_spent` không tính các đơn `CANCELLED`, còn `total_orders` vẫn tính cả đơn đã hủy.
+
+### Quy tắc nghiệp vụ chính
+
+- Khi cập nhật sản phẩm, các trường được hỗ trợ gồm `name`, `description`, `original_price`, `flash_sale_price`, `start_time`, `end_time` và `status`. Không cập nhật tồn kho qua endpoint này.
+- Tên sản phẩm sau chuẩn hóa dài từ 1 đến 200 ký tự. Giá phải dương, tối đa hai chữ số thập phân và giá Flash Sale phải thấp hơn giá gốc. Thời gian kết thúc phải sau thời gian bắt đầu khi cả hai cùng được cung cấp. `status` chỉ nhận `ACTIVE` hoặc `INACTIVE`.
+- Điều chỉnh tồn kho dùng body `{"adjustment": số_nguyên}`. Giá trị dương là nhập thêm, giá trị âm là xuất bớt. Không chấp nhận giá trị 0, xuất vượt tồn kho hoặc để tồn kho vượt quá 1.000.000.
+- Khi đặt hàng, hệ thống cập nhật tồn kho với điều kiện số lượng hiện có phải đủ. Nếu ghi đơn thất bại sau bước giữ kho, service thực hiện hoàn kho. Các thao tác giữ kho, ghi đơn và hoàn kho được commit riêng, không phải một transaction nguyên tử bao trùm toàn bộ quy trình.
+- Chỉ chủ đơn mới được hủy và chỉ đơn `PENDING` được hủy. Hệ thống chuyển trạng thái đơn sang `CANCELLED` trước, sau đó hoàn kho. Nếu bước hoàn kho thất bại, yêu cầu trả lỗi; trạng thái đơn đã được commit là `CANCELLED`.
+
+## 4. Hướng dẫn chạy dự án
+
+### Cách 1: Sử dụng Docker Compose
+
+Yêu cầu: Đã cài đặt Docker và Docker Compose.
+
+1. Khởi động toàn bộ hệ thống:
 
 ```bash
 docker compose up --build
 ```
 
-Ứng dụng mặc định mở tại `http://localhost:8000`; Swagger UI tại `/docs`. Dừng stack bằng `Ctrl+C`; chạy `docker compose down` để gỡ container (volume dữ liệu `postgres_data` vẫn được giữ, trừ khi xóa volume).
+2. Truy cập tài liệu API:
 
-Tài khoản thử nghiệm do seed tạo:
+- Đường dẫn: `http://localhost:8000/docs`
 
-| Vai trò | Username | Password |
-| :-- | :-- | :-- |
-| Admin | `admin` | `admin123` |
-| Customer | `customer1` | `password123` |
+- Tài khoản thử nghiệm:
 
-### 4.2. Chạy trực tiếp bằng Python
+  - Quản trị viên: `admin` / `admin123`
 
-Yêu cầu Python 3.10 trở lên và PostgreSQL đang chạy. Tạo/kích hoạt môi trường ảo theo hệ điều hành, sau đó cài dependencies và cấu hình:
+  - Khách hàng: `customer1` / `password123`
+
+### Cách 2: Chạy trực tiếp bằng Python
+
+Yêu cầu: Python 3.10+ và PostgreSQL đang chạy.
+
+1. Cài đặt thư viện:
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env
 ```
 
-Cập nhật `DATABASE_URL` trong `.env` cho PostgreSQL cục bộ. Các biến ứng dụng gồm `PROJECT_NAME`, `API_V1_STR`, `DATABASE_URL`, `SECRET_KEY`, `ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`. `.env.example` cung cấp giá trị mẫu; secret mặc định và thông tin đăng nhập seed chỉ phù hợp cho phát triển/thử nghiệm.
+2. Thiết lập cấu hình:
 
-Khởi tạo dữ liệu thử nghiệm và chạy server:
+- Sao chép `.env.example` thành `.env` và cập nhật thông tin `DATABASE_URL`.
+
+3. Khởi tạo dữ liệu thử nghiệm:
 
 ```bash
 python -m scripts.seed
+```
+
+4. Khởi chạy server:
+
+```bash
 uvicorn app.main:app --reload
 ```
 
-Khi ứng dụng khởi động, `Base.metadata.create_all()` tạo các bảng còn thiếu. Source hiện không có migration schema.
+## 5. Kết quả kiểm thử thực tế trên Kaggle
 
-### 4.3. Chạy test
+### 5.1. Tổng quan môi trường kiểm thử
 
-`pytest` không nằm trong `requirements.txt`; cài thêm nếu cần rồi chạy test service/schema:
+- Cấu hình: Kaggle CPU, Accelerator: None, Internet on.
 
-```bash
-pip install pytest
-python -m pytest
-```
+- Kiểm thử trên endpoint `POST /api/v1/orders`, timeout mỗi request 60 giây.
 
-Test hiện có nằm trong `tests/services/`, bao phủ các quy tắc service sản phẩm/đơn hàng và validation schema thông qua fake repositories.
+- Mỗi mức tải được chạy 3 lần độc lập; bảng kết quả ghi khoảng giá trị nhỏ nhất, lớn nhất của 3 lần.
 
-## 5. Kết quả kiểm thử tải Phase 1 trên Kaggle
+- Chỉ số đánh giá:
 
-Các số liệu dưới đây là kết quả kiểm thử tải Phase 1 được lưu trong README từ lần chạy trước; đây **không phải** kết quả đo của source code hiện tại. Notebook hiện có cấu hình `REPEATS = 1`, không có execution output kèm theo để xác nhận lại các số liệu này.
+  - HTTP 201: số request tạo đơn thành công; HTTP 500: số request server trả lỗi nội bộ.
 
-### 5.1. Môi trường và chỉ số
+  - Timeout: số request không nhận được phản hồi sau 60 giây.
 
-- Môi trường: Kaggle CPU, Accelerator: None, Internet on.
-- Endpoint kiểm thử: `POST /api/v1/orders`; timeout mỗi request là 60 giây.
-- Bảng kết quả giữ các khoảng giá trị nhỏ nhất–lớn nhất đã ghi nhận; cấu hình notebook hiện tại chưa tái lập ba lần chạy (`REPEATS = 1`).
-- HTTP 201: request tạo đơn thành công; HTTP 500: request server trả lỗi nội bộ; Timeout: không nhận phản hồi trong 60 giây.
-- “Đơn trong DB” là số bản ghi đơn thực tế; “Tồn kho mong đợi” = tồn ban đầu − số đơn thực tế được lưu. p95 là thời gian phản hồi mà 95% request nhanh hơn hoặc bằng, tính cả request timeout.
+  - Tồn kho thực tế: số lượng tồn kho còn lại của sản phẩm sau khi chạy; Đơn trong DB: số đơn hàng thực tế được ghi nhận trogn DB.
 
-### 5.2. Kịch bản 1: 20 request đồng thời
+  - p95: thời gian phản hồi mà 95% request nhanh hơn hoặc bằng, tính cả request timeout.
 
-Khởi tạo một sản phẩm tồn kho 100, gửi đồng thời 20 request đặt mua và kiểm tra số đơn cùng lượng tồn kho còn lại.
+### 5.2. Kịch bản thứ 1
+
+Kịch bản kiểm thử:
+
+- Khởi tạo một sản phẩm có số lượng tồn kho là 100.
+
+- Gửi đồng thời 20 request đặt mua sản phẩm.
+
+- Kiểm tra số đơn hàng được tạo và số lượng tồn kho còn lại.
 
 | Request đồng thời | Đơn trong DB | Tồn kho mong đợi | Tồn kho thực tế |
-| --: | --: | --: | --: |
-| 20 | 20 | 80 | 95–96 |
+| ----------------: | -----------: | ---------------: | --------------: |
+|                20 |           20 |               80 |         95 – 96 |
 
-### 5.3. Kịch bản 2: 1.000 request với các mức client
+Hệ thống chưa đảm bảo tính nhất quán của dữ liệu tồn kho khi xử lý các request đặt hàng đồng thời.
 
-Khởi tạo sản phẩm tồn kho 10.000 cho mỗi lượt tải; gửi tổng cộng 1.000 request với 10, 50, 100 và 200 client đồng thời.
+### 5.3. Kịch bản thứ 2
 
-| Client đồng thời | HTTP 201 | HTTP 500 | Timeout | Đơn trong DB | Tồn kho mong đợi | Tồn kho thực tế | p95 (ms) |
-| --: | --: | --: | --: | --: | --: | --: | --: |
-| 10 | 1000 | 0 | 0 | 1000 | 9000 | 9538–9559 | 128–162 |
-| 50 | 1000 | 0 | 0 | 1000 | 9000 | 9776–9793 | 751–871 |
-| 100 | 10–18 | 86–102 | 865–881 | 271–287 | 9713–9729 | 9903–9913 | 60121–60139 |
-| 200 | 0 | 40 | 950–955 | — | — | — | 60225–60347 |
+Kịch bản kiểm thử:
 
-**Nhận xét:** ở mức 10 và 50 client, mọi request đều thành công nhưng tồn kho bị trừ thiếu trong cả ba lần chạy. Ở mức 100 client, phần lớn request lỗi hoặc timeout và p95 vượt 60 giây. Ở mức 200 client, không request nào thành công. Kết quả Phase 1 cho thấy tải cao làm giảm khả năng phản hồi và dữ liệu tồn kho không chính xác; không suy rộng số liệu này thành kết quả của source hiện tại.
+- Khởi tạo một sản phẩm có số lượng tồn kho là 10000 cho mỗi mức tải.
 
-## 6. Định hướng cải tiến Phase 2
+- Gửi tổng cộng 1000 request đặt mua sản phẩm, lần lượt với 10, 50, 100 và 200 client.
 
-Bảng dưới đây là các hướng nghiên cứu/đề xuất, **không phải danh sách chức năng đã hoàn thành** trong source hiện tại.
+- Kiểm tra kết quả xử lý, thời gian phản hồi và số lượng tồn kho còn lại. Nếu tạo đủ 1000 đơn thì số lượng hàng tồn kho phải còn 9000.
 
-| Nội dung | Vấn đề ghi nhận ở Phase 1 | Định hướng cải tiến và đánh giá |
-| :-- | :-- | :-- |
-| Tính nhất quán dữ liệu khi xử lý đồng thời | Kết quả tải cho thấy số đơn đã tạo và tồn kho còn lại không khớp khi nhiều khách cùng mua một sản phẩm. | Dùng cập nhật kho nguyên tử tại database và thiết kế transaction thống nhất cho trừ kho/tạo đơn. Đánh giá bằng đối soát sau mỗi mức tải: tổng số lượng bán cộng tồn kho còn lại phải bằng tồn ban đầu trong kịch bản chỉ đặt hàng. |
-| Độ tin cậy khi gửi lại yêu cầu | Client có thể gửi lại khi mạng chậm hoặc timeout dù yêu cầu ban đầu vẫn đang xử lý; kịch bản Phase 1 chưa đánh giá kết quả retry. | Nghiên cứu mã idempotency để nhận diện các lần gửi lại cùng thao tác và trả kết quả thống nhất. Kiểm thử retry đặt/hủy đơn và timeout, xác nhận mỗi thao tác chỉ làm đổi đơn/tồn kho một lần. |
-| Khả năng mở rộng | Notebook kiểm thử backend với một worker, chưa đánh giá nhiều tiến trình/máy chủ. Mỗi lượt tải tập trung vào cùng sản phẩm nên database vẫn phải xử lý tranh chấp trên cùng dòng tồn kho. | Tăng số worker, tiếp tục đánh giá nhiều máy chủ và phân phối request; điều chỉnh tổng connection phù hợp database. So sánh cấu hình riêng, đồng thời kiểm tra khả năng phục vụ và tính đúng đắn của tồn kho. |
-| Bảo mật khi vận hành | Phase 1 dùng cấu hình/tài khoản thử nghiệm; kịch bản tải chưa đánh giá dò mật khẩu hoặc gửi request liên tục. | Quản lý khóa token và mật khẩu database riêng theo môi trường; xem xét giới hạn tần suất đăng nhập/request. Kiểm thử khả năng ngăn lạm dụng và bảo đảm người dùng hợp lệ vẫn truy cập được. |
-| Khả năng phục hồi | Các lượt tải cao có timeout; chưa đánh giá phục hồi sau quá tải, mất kết nối database hoặc khởi động lại. | Bổ sung đánh giá trạng thái sẵn sàng, timeout có giới hạn và cách tra cứu kết quả sau timeout. Thử ngắt kết nối, khởi động lại, giảm tải để đo thời gian phục hồi/đối soát dữ liệu; chuẩn bị và thử quy trình sao lưu/khôi phục. |
+| Client đồng thời | HTTP 201 | HTTP 500 |   Timeout | Đơn trong DB | Tồn kho mong đợi | Tồn kho thực tế |      p95 (ms) |
+| ---------------: | -------: | -------: | --------: | -----------: | ---------------: | --------------: | ------------: |
+|               10 |     1000 |        0 |         0 |         1000 |             9000 |     9538 – 9559 |     128 – 162 |
+|               50 |     1000 |        0 |         0 |         1000 |             9000 |     9776 – 9793 |     751 – 871 |
+|              100 |  10 – 18 | 86 – 102 | 865 – 881 |    271 – 287 |      9713 – 9729 |     9903 – 9913 | 60121 – 60139 |
+|              200 |        0 |       40 | 950 – 955 |          --- |              --- |             --- | 60225 – 60347 |
+
+Tồn kho mong đợi = 10000 − số đơn hàng thực tế được lưu.
+
+Nhận xét:
+
+- Ở mức 10 và 50 client, tất cả request đều thành công nhưng tồn kho vẫn bị trừ thiếu ở cả 3 lần chạy.
+
+- Ở mức 100 client, phần lớn request bị lỗi hoặc timeout, p95 vượt 60 giây.
+
+- Ở mức 200 client, không request nào thành công.
+
+Khi số lượng request đặt hàng đồng thời tăng cao, hệ thống phản hồi chậm, khả năng xử lý chưa ổn định và dữ liệu tồn kho không còn chính xác.
+
+## 6. Vấn đề dễ thấy và hướng cải tiến Phase 2
+
+| Nội dung | Vấn đề ở Phase 1 | Hướng cải tiến Phase 2 |
+| :--- | :--- | :--- |
+| Tính nhất quán dữ liệu khi xử lý đồng thời | Code hiện tại đã dùng cập nhật tồn kho có điều kiện để tránh trừ kho vượt số lượng còn lại. Tuy nhiên, bước giữ kho và ghi đơn vẫn commit riêng, nên chưa bảo đảm toàn bộ quy trình là một transaction nguyên tử. Các kết quả kiểm thử tải bên trên chưa xác nhận cơ chế mới. | Áp dụng cập nhật kho nguyên tử tại database và quản lý trừ kho, tạo đơn trong cùng một giao dịch. Đánh giá bằng đối soát dữ liệu sau mỗi mức tải: tổng số lượng đã bán cộng tồn kho còn lại phải bằng tồn kho ban đầu trong kịch bản chỉ đặt hàng. |
+| Độ tin cậy khi gửi lại yêu cầu | Khi mạng chậm hoặc client timeout, khách có thể gửi lại yêu cầu dù lần trước vẫn đang được xử lý. Hai kịch bản hiện tại chưa đánh giá khả năng duy trì một kết quả giao dịch thống nhất trong tình huống này. | Dùng mã định danh yêu cầu để nhận biết các lần gửi lại của cùng một thao tác và trả về cùng kết quả. Kiểm thử gửi lặp khi đặt/hủy đơn và khi timeout, bảo đảm mỗi thao tác chỉ làm thay đổi đơn hàng, tồn kho một lần. |
+| Khả năng mở rộng | Notebook hiện chỉ kiểm thử backend với 1 worker, nên chưa đánh giá được hiệu quả khi chạy nhiều tiến trình hoặc nhiều máy chủ. Mọi yêu cầu trong mỗi lượt đều mua cùng một sản phẩm, vì vậy mở rộng backend vẫn phải giải quyết việc cùng cập nhật một dòng tồn kho. | Thử tăng số worker, sau đó đánh giá chạy nhiều máy chủ và phân phối yêu cầu giữa chúng. Điều chỉnh tổng số kết nối phù hợp với khả năng database. So sánh riêng từng cấu hình để xác định có phục vụ thêm người mua hay không, đồng thời kiểm tra kho vẫn chính xác. |
+| Bảo mật khi vận hành | Phase 1 sử dụng cấu hình và tài khoản thử nghiệm; các kịch bản hiện tại tập trung vào đặt hàng, chưa đánh giá mức bảo vệ trước việc dò mật khẩu hoặc gửi yêu cầu liên tục. Cần bổ sung đánh giá bảo mật trước khi vận hành thực tế. | Quản lý khóa ký token và mật khẩu database bằng cấu hình riêng cho từng môi trường; giới hạn tần suất đăng nhập và yêu cầu theo chính sách. Kiểm thử khả năng ngăn chặn lạm dụng, đồng thời bảo đảm người dùng hợp lệ vẫn sử dụng được hệ thống. |
+| Khả năng phục hồi khi có sự cố | Các ca tải cao ghi nhận nhiều timeout; khả năng trở lại hoạt động ổn định sau quá tải, mất kết nối database hoặc khởi động lại chưa được hai kịch bản hiện tại đánh giá. | Bổ sung theo dõi trạng thái sẵn sàng, thời gian chờ có giới hạn và cách tra cứu kết quả sau timeout. Thử ngắt kết nối, khởi động lại và giảm tải để đo thời gian phục hồi, đối soát dữ liệu. Chuẩn bị sao lưu và thử khôi phục để đánh giá khả năng bảo toàn dữ liệu khi có sự cố. |
